@@ -1,0 +1,70 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Inter', 'Poppins', sans-serif;
+  
+  --color-brand-primary: #0066CC;
+  --color-brand-secondary: #00A884;
+  --color-brand-text-secondary: #5A6A85;
+  --color-brand-bg: #F8FBFF;
+  --color-brand-accent: #EAF7FF;
+  --color-brand-text: #1A1A1A;
+  --color-brand-border: #E8EEF5;
+  
+  --animate-float: float 6s ease-in-out infinite;
+  --animate-pulse-slow: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-12px); }
+}
+
+html {
+  scroll-behavior: smooth;
+  background-color: #F8FBFF;
+  color: #1A1A1A;
+}
+
+/* Custom modern scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #F8FBFF;
+}
+::-webkit-scrollbar-thumb {
+  background: #C3DAF0;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #0066CC;
+}
+
+/* Custom visible dark scrollbar for the mobile navigation scroller */
+.scrollbar-visible-dark {
+  scrollbar-width: thin;
+  scrollbar-color: #334155 #0f172a;
+}
+
+.scrollbar-visible-dark::-webkit-scrollbar {
+  height: 5px !important;
+  display: block !important;
+}
+
+.scrollbar-visible-dark::-webkit-scrollbar-track {
+  background: #0f172a !important;
+  border-radius: 9999px;
+}
+
+.scrollbar-visible-dark::-webkit-scrollbar-thumb {
+  background: #334155 !important;
+  border-radius: 9999px;
+}
+
+.scrollbar-visible-dark::-webkit-scrollbar-thumb:hover {
+  background: #475569 !important;
+}
+

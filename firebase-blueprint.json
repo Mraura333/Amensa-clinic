@@ -1,0 +1,113 @@
+{
+  "entities": {
+    "Patient": {
+      "title": "Patient",
+      "description": "Patient user profile and authentication metadata",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "fullName": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "mobile": { "type": "string" },
+        "passwordHash": { "type": "string" },
+        "dob": { "type": "string" },
+        "gender": { "type": "string" },
+        "address": { "type": "string" },
+        "profileImage": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "disabled"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "fullName", "email", "mobile", "passwordHash"]
+    },
+    "Appointment": {
+      "title": "Appointment",
+      "description": "Diagnostic test or health package booking request",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "patientId": { "type": "string" },
+        "patientName": { "type": "string" },
+        "patientAge": { "type": "integer" },
+        "patientGender": { "type": "string" },
+        "mobile": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "selectedItemType": { "type": "string", "enum": ["Package", "RoutineTest", "Radiology"] },
+        "selectedItemId": { "type": "string" },
+        "selectedItemName": { "type": "string" },
+        "bookingType": { "type": "string", "enum": ["HomeCollection", "CenterVisit"] },
+        "preferredDate": { "type": "string" },
+        "preferredTimeSlot": { "type": "string" },
+        "address": { "type": "string" },
+        "locationId": { "type": "string" },
+        "pricePaid": { "type": "number" },
+        "status": { "type": "string", "enum": ["Pending", "Confirmed", "Sample Collected", "Processing", "Report Ready", "Completed", "Cancelled"] },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "patientName", "mobile", "selectedItemType", "selectedItemName", "bookingType", "preferredDate", "preferredTimeSlot", "status"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "Patient alert notification regarding booking status or report release",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "patientId": { "type": "string" },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "read": { "type": "boolean" }
+      },
+      "required": ["id", "patientId", "title", "message", "createdAt", "read"]
+    },
+    "Report": {
+      "title": "Report",
+      "description": "Uploaded medical diagnostic report PDF metadata",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "patientId": { "type": "string" },
+        "bookingId": { "type": "string" },
+        "testName": { "type": "string" },
+        "date": { "type": "string" },
+        "pdfUrl": { "type": "string" },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "patientId", "bookingId", "testName", "date", "pdfUrl", "createdAt"]
+    },
+    "CmsDocument": {
+      "title": "CmsDocument",
+      "description": "Website configurations, packages, tests, branches, testimonials, faqs, or gallery lists",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
+    }
+  },
+  "firestore": {
+    "/patients/{patientId}": {
+      "schema": "Patient",
+      "description": "Patients database"
+    },
+    "/appointments/{appointmentId}": {
+      "schema": "Appointment",
+      "description": "Patient booking appointments"
+    },
+    "/notifications/{notificationId}": {
+      "schema": "Notification",
+      "description": "User notifications"
+    },
+    "/reports/{reportId}": {
+      "schema": "Report",
+      "description": "Uploaded patient reports"
+    },
+    "/cms/{documentId}": {
+      "schema": "CmsDocument",
+      "description": "Editable CMS configurations, website settings, and content lists"
+    }
+  }
+}

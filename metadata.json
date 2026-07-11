@@ -1,0 +1,6 @@
+{
+  "name": "Amensa Diagnostics",
+  "description": "Premium healthcare website and online booking platform for Amensa Diagnostics, featuring accurate digital lab reports, certified home collections, and wellness packages.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,113 @@
+{
+  "patients": [
+    {
+      "id": "AMS-P12345",
+      "fullName": "Patient Name",
+      "email": "patient@example.com",
+      "mobile": "9876543210",
+      "passwordHash": "$2b$10$I.ICBZ5jLXt/4kJY4OD9EeRACBtGPItTb8S439PITxP1wUxH4Mq36",
+      "dob": "1988-11-14",
+      "gender": "Male",
+      "address": "B-201, Green Meadows, LBS Marg, Mulund West, Mumbai",
+      "profileImage": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=150&auto=format&fit=crop",
+      "status": "active",
+      "createdAt": "2026-06-26T10:43:20.062Z",
+      "updatedAt": "2026-06-26T10:43:20.063Z"
+    },
+    {
+      "id": "AMS-P649393",
+      "fullName": "Patient Name B",
+      "email": "patient.b@example.com",
+      "mobile": "9876543211",
+      "passwordHash": "$2b$10$0EUQtfHjUbQWAD6WvhddJeW66iKDBOodZ/lMQ3Armh3G3SNzBRk5y",
+      "dob": "2009-12-06",
+      "gender": "Male",
+      "address": "",
+      "profileImage": "",
+      "status": "active",
+      "createdAt": "2026-06-26T10:47:45.127Z",
+      "updatedAt": "2026-06-26T10:47:45.127Z"
+    }
+  ],
+  "appointments": [
+    {
+      "id": "AMS-B77002",
+      "patientId": "AMS-P12345",
+      "patientName": "Patient Name",
+      "patientAge": 38,
+      "patientGender": "Male",
+      "mobile": "9876543210",
+      "email": "patient@example.com",
+      "selectedItemType": "Package",
+      "selectedItemId": "pkg-senior-male",
+      "selectedItemName": "Senior Citizen Active Health Care (Male)",
+      "bookingType": "HomeCollection",
+      "preferredDate": "2026-06-25",
+      "preferredTimeSlot": "08:00 AM - 10:00 AM",
+      "address": "B-201, Green Meadows, LBS Marg, Mulund West, Mumbai",
+      "pricePaid": 1499,
+      "status": "Completed",
+      "createdAt": "2026-06-24T08:00:00Z",
+      "updatedAt": "2026-06-25T14:30:00Z"
+    },
+    {
+      "id": "AMS-B77003",
+      "patientId": "AMS-P12345",
+      "patientName": "Patient Name",
+      "patientAge": 38,
+      "patientGender": "Male",
+      "mobile": "9876543210",
+      "email": "patient@example.com",
+      "selectedItemType": "RoutineTest",
+      "selectedItemId": "t-lipid",
+      "selectedItemName": "Lipid Profile (Cholesterol Panel)",
+      "bookingType": "HomeCollection",
+      "preferredDate": "2026-06-29",
+      "preferredTimeSlot": "07:00 AM - 08:00 AM",
+      "address": "B-201, Green Meadows, LBS Marg, Mulund West, Mumbai",
+      "pricePaid": 450,
+      "status": "Pending",
+      "createdAt": "2026-06-25T11:45:00Z",
+      "updatedAt": "2026-06-25T11:45:00Z"
+    }
+  ],
+  "notifications": [
+    {
+      "id": "AMS-N585261",
+      "patientId": "AMS-P649393",
+      "title": "Welcome to Amensa Diagnostics!",
+      "message": "Hello Patient Name B, your secure clinical patient portal is active. You can now book home sample collections, view reports, and track test statuses.",
+      "createdAt": "2026-06-26T10:47:45.127Z",
+      "read": false
+    },
+    {
+      "id": "AMS-N001",
+      "patientId": "AMS-P12345",
+      "title": "Welcome to Amensa Diagnostics!",
+      "message": "Hello Patient Name, your secure clinical patient portal is active. You can now book home sample collections, view reports, and track test statuses.",
+      "createdAt": "2026-06-24T08:05:00Z",
+      "read": true
+    },
+    {
+      "id": "AMS-N002",
+      "patientId": "AMS-P12345",
+      "title": "Official Lab Report Dispatched!",
+      "message": "Your official double-blind checked diagnostics pathology reports for \"Senior Citizen Active Health Care (Male)\" are ready and available for digital download inside your Patient Portal.",
+      "createdAt": "2026-06-25T14:31:00Z",
+      "read": false
+    }
+  ],
+  "reports": [
+    {
+      "id": "AMS-REP-8801",
+      "patientId": "AMS-P12345",
+      "bookingId": "AMS-B77002",
+      "testName": "Senior Citizen Active Health Care (Male)",
+      "date": "2026-06-25T14:30:00Z",
+      "pdfUrl": "/api/patient/reports/download/AMS-REP-8801",
+      "notes": "Biochemistry parameters indicate mild high lipid scores. Phlebotomy completed safely. Fasting sugar is normal.",
+      "createdAt": "2026-06-25T14:30:00Z"
+    }
+  ],
+  "passwordResetTokens": {}
+}
