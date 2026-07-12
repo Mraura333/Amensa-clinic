@@ -53,7 +53,8 @@ const customFetch = async function (input: RequestInfo | URL, init?: RequestInit
       // Robust error handling to catch non-JSON HTML fallbacks on static servers like Netlify
       const contentType = response.headers.get('content-type');
       if (!response.ok && contentType && contentType.includes('text/html')) {
-        const text = await response.text();
+        const textClone = response.clone();
+        const text = await textClone.text();
         if (text.includes('<!DOCTYPE html>') || text.includes('<html')) {
           throw new Error(`Unexpected HTML response (Status ${response.status}). The requested endpoint '${input}' might not exist or the backend server is offline.`);
         }
