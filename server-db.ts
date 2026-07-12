@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { initializeApp, getApps } from 'firebase-admin/app';
 import { getFirestore, Firestore } from 'firebase-admin/firestore';
+import { syncToSupabase } from './src/services/supabaseService';
 
 const DB_FILE = path.join(process.cwd(), 'db.json');
 const JWT_SECRET = process.env.JWT_SECRET || 'amensa_clinical_secure_key_2026';
@@ -119,7 +120,7 @@ export interface SchedulingConfig {
   unavailableTimeSlots: string[]; // list of times (HH:MM)
 }
 
-interface DatabaseSchema {
+export interface DatabaseSchema {
   patients: Patient[];
   appointments: Appointment[];
   notifications: Notification[];
@@ -226,6 +227,11 @@ export function saveDB(db: DatabaseSchema) {
       console.error('Async background Firestore synchronization failed:', err);
     });
   }
+
+  // Trigger Async Supabase write sync
+  syncToSupabase(db).catch(err => {
+    console.error('Async background Supabase synchronization failed:', err);
+  });
 }
 
 // Password utility
@@ -531,6 +537,11 @@ export async function initializeAndSyncFirestore() {
     // Save final synchronized/merged state to local DB file
     fs.writeFileSync(DB_FILE, JSON.stringify(localDB, null, 2), 'utf-8');
     console.log('Firestore synchronization completed successfully!');
+
+    // Trigger startup synchronization with Supabase
+    syncToSupabase(localDB).catch(err => {
+      console.error('[Supabase Startup Sync] Failed:', err);
+    });
 
   } catch (err) {
     const isPermissionError = err instanceof Error && err.message.includes('PERMISSION_DENIED');

@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
+import QRCode from 'qrcode';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Trash2, ShieldCheck, Calendar, Phone, Clock, MessageSquare, Calculator, MapPin, CreditCard, QrCode, Landmark, Wallet, Check, AlertTriangle, Loader2, Copy, Upload, CheckCircle } from 'lucide-react';
 
@@ -84,6 +85,7 @@ export default function EstimateCartModal({
   const [paymentScreenshot, setPaymentScreenshot] = useState<File | null>(null);
   const [paymentScreenshotUrl, setPaymentScreenshotUrl] = useState<string | null>(null);
   const [copiedUPI, setCopiedUPI] = useState(false);
+  const [localQrCodeUrl, setLocalQrCodeUrl] = useState<string>('');
 
   // Edit this UPI ID to your active clinic UPI ID (e.g. UPI ID or GPay/PhonePe business ID)
   const CLINIC_UPI_ID = "amensadiagnostics@okhdfcbank";
@@ -130,6 +132,30 @@ export default function EstimateCartModal({
   const cleanItemNamesForNote = cartItemNames.substring(0, 30).replace(/[^a-zA-Z0-9]/g, '-');
   const upiUrl = `upi://pay?pa=${CLINIC_UPI_ID}&pn=${encodeURIComponent("Amensa Diagnostics")}&am=${totalAmount}&cu=INR&tn=${encodeURIComponent(`Booking-${cleanItemNamesForNote}`)}`;
   const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(upiUrl)}`;
+
+  // Generate self-contained local QR code in production to avoid ad-blockers / CORS / CDN 404 failures on Netlify
+  useEffect(() => {
+    let active = true;
+    QRCode.toDataURL(upiUrl, {
+      width: 250,
+      margin: 1,
+      color: {
+        dark: '#000000',
+        light: '#FFFFFF'
+      }
+    })
+      .then(url => {
+        if (active) {
+          setLocalQrCodeUrl(url);
+        }
+      })
+      .catch(err => {
+        console.error('Local QR Code Generation Error in EstimateCartModal:', err);
+      });
+    return () => {
+      active = false;
+    };
+  }, [upiUrl]);
 
   // Detect whether specific Radiology items are present in the estimate cart to enforce schedule slots
   const hasSonography = useMemo(() => items.some(item => item.id === 'rad-sonography'), [items]);
@@ -897,7 +923,7 @@ Please confirm my appointment. Thank you.`;
                             <div className="flex flex-col items-center justify-center py-4 bg-slate-50/50 border border-slate-100 rounded-2xl">
                               <div className="bg-white p-3 rounded-2xl shadow-md border border-slate-100/80">
                                 <img
-                                  src={qrCodeUrl}
+                                  src={localQrCodeUrl || qrCodeUrl}
                                   alt="UPI QR Code"
                                   className="w-36 h-36 object-contain"
                                   referrerPolicy="no-referrer"

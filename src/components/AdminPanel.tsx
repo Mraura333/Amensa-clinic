@@ -25,7 +25,13 @@ import {
   ChevronRight,
   Plus,
   IndianRupee,
-  AlertTriangle
+  AlertTriangle,
+  CloudLightning,
+  Copy,
+  Check,
+  Database,
+  Server,
+  ShieldCheck
 } from 'lucide-react';
 import { Payment, Booking } from '../types';
 import { paymentService } from '../services/paymentService';
@@ -59,6 +65,15 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
   const [isScreenshotModalOpen, setIsScreenshotModalOpen] = useState(false);
   const [selectedScreenshotUrl, setSelectedScreenshotUrl] = useState<string | null>(null);
   const [actionNotes, setActionNotes] = useState('');
+
+  // Supabase states
+  const [showSupabaseModal, setShowSupabaseModal] = useState(false);
+  const [supabaseStats, setSupabaseStats] = useState<any>(null);
+  const [isLoadingStats, setIsLoadingStats] = useState(false);
+  const [isSyncingSupabase, setIsSyncingSupabase] = useState(false);
+  const [supabaseSyncMessage, setSupabaseSyncMessage] = useState<string | null>(null);
+  const [supabaseSyncError, setSupabaseSyncError] = useState<string | null>(null);
+  const [sqlCopied, setSqlCopied] = useState<'patients' | 'payments' | 'appointments' | null>(null);
 
   // Subscribe to real-time updates when logged in
   useEffect(() => {
@@ -101,11 +116,56 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
       setBookings(updatedBookings);
     });
 
+    // Fetch initial Supabase integration stats
+    fetchSupabaseStats();
+
     return () => {
       unsubscribePayments();
       unsubscribeBookings();
     };
   }, [adminUser]);
+
+  const fetchSupabaseStats = async () => {
+    setIsLoadingStats(true);
+    try {
+      const res = await fetch('/api/admin/supabase/stats');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          setSupabaseStats(data.stats);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch Supabase stats:', err);
+    } finally {
+      setIsLoadingStats(false);
+    }
+  };
+
+  const handleSupabaseSync = async () => {
+    setIsSyncingSupabase(true);
+    setSupabaseSyncMessage(null);
+    setSupabaseSyncError(null);
+    try {
+      const res = await fetch('/api/admin/supabase/sync', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setSupabaseSyncMessage(data.message || 'Records synced successfully!');
+        setSupabaseStats(data.stats);
+      } else {
+        setSupabaseSyncError(data.error || 'Failed to synchronize database records.');
+      }
+    } catch (err: any) {
+      setSupabaseSyncError(err.message || 'Network error executing sync.');
+    } finally {
+      setIsSyncingSupabase(false);
+    }
+  };
 
   // Handle Login submission
   const handleLogin = async (e: React.FormEvent) => {
@@ -266,11 +326,24 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
         </div>
 
         {adminUser && (
-          <div className="flex items-center gap-4">
-            <div className="hidden sm:flex flex-col text-right">
+          <div className="flex items-center gap-3">
+            <div className="hidden lg:flex flex-col text-right mr-1">
               <span className="text-xs font-bold text-slate-800">{adminUser.displayName || adminUser.email}</span>
               <span className="text-[9px] text-emerald-600 font-extrabold uppercase tracking-widest mt-0.5">Active Admin Session</span>
             </div>
+            
+            <button
+              onClick={() => {
+                fetchSupabaseStats();
+                setShowSupabaseModal(true);
+              }}
+              className="py-2 px-3.5 bg-blue-50 hover:bg-blue-100 border border-blue-100 text-[#0066CC] rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-2"
+              title="Inspect Supabase Cloud Sync"
+            >
+              <CloudLightning className="w-4 h-4 shrink-0 text-[#0066CC]" />
+              <span className="hidden sm:inline">Supabase Status</span>
+            </button>
+
             <button
               onClick={handleLogout}
               className="py-2 px-3.5 bg-rose-50 border border-rose-100 text-rose-600 hover:bg-rose-100 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2"
@@ -804,6 +877,289 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
               />
               <div className="py-3.5 px-6 text-center text-xs font-bold text-slate-500 uppercase tracking-widest bg-slate-50 rounded-b-2xl border-t border-slate-100 shrink-0">
                 Uploaded Payment Screenshot Proof (Verified by AES-256)
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Supabase Connection & Control Center Modal */}
+      <AnimatePresence>
+        {showSupabaseModal && (
+          <div className="fixed inset-0 z-[10000] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-[28px] border border-slate-100 shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-y-auto flex flex-col"
+            >
+              {/* Header */}
+              <div className="p-6 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white z-10 shrink-0">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center text-[#0066CC] border border-blue-100 shadow-inner">
+                    <CloudLightning className="w-5 h-5 text-[#0066CC]" />
+                  </div>
+                  <div>
+                    <h3 className="font-black text-slate-800 text-sm uppercase tracking-wider">Supabase Integration Center</h3>
+                    <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-widest mt-0.5">Relational PostgreSQL Synchronization</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowSupabaseModal(false)}
+                  className="p-1.5 hover:bg-slate-50 border border-slate-100 text-slate-400 hover:text-slate-600 rounded-xl transition-colors cursor-pointer"
+                >
+                  <X className="w-4.5 h-4.5" />
+                </button>
+              </div>
+
+              {/* Content Body */}
+              <div className="p-6 space-y-6 flex-1">
+                {/* Connection Status Section */}
+                <div className="p-5 border border-slate-100 bg-slate-50/50 rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                      <span className="font-mono text-xs font-black text-slate-700 uppercase">Status: Connected</span>
+                    </div>
+                    <p className="text-[11px] text-slate-400 font-bold tracking-tight">
+                      Project ID: <span className="font-mono text-slate-600">xxpmsqiojwjznpzprdha</span>
+                    </p>
+                    <p className="text-[10px] text-slate-400">
+                      Sync Host: <span className="font-mono">https://xxpmsqiojwjznpzprdha.supabase.co</span>
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={handleSupabaseSync}
+                    disabled={isSyncingSupabase}
+                    className="w-full md:w-auto py-2.5 px-4 bg-[#0066CC] hover:bg-[#0052CC] text-white disabled:bg-blue-100 disabled:text-blue-400 font-black text-xs rounded-xl shadow-lg shadow-blue-50 uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isSyncingSupabase ? 'animate-spin' : ''}`} />
+                    <span>{isSyncingSupabase ? 'Syncing Nodes...' : 'Force Synchronize'}</span>
+                  </button>
+                </div>
+
+                {/* Notifications & Log Banners */}
+                {supabaseSyncMessage && (
+                  <div className="p-3.5 bg-emerald-50 border border-emerald-100 text-emerald-800 text-xs font-semibold rounded-xl flex items-center gap-2 animate-fade-in">
+                    <ShieldCheck className="w-4 h-4 shrink-0 text-emerald-600" />
+                    <span>{supabaseSyncMessage}</span>
+                  </div>
+                )}
+
+                {supabaseSyncError && (
+                  <div className="p-3.5 bg-rose-50 border border-rose-100 text-rose-800 text-xs font-semibold rounded-xl flex items-center gap-2 animate-fade-in">
+                    <ShieldAlert className="w-4 h-4 shrink-0 text-rose-600" />
+                    <span>{supabaseSyncError}</span>
+                  </div>
+                )}
+
+                {/* Database Metrics Grid */}
+                <div>
+                  <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-3">Sync Telemetry Statistics</h4>
+                  <div className="grid grid-cols-3 gap-3.5">
+                    <div className="bg-[#FAFBFD] border border-[#E8EEF5] p-3.5 rounded-xl text-center space-y-1">
+                      <span className="text-lg">👥</span>
+                      <p className="font-mono font-black text-slate-800 text-sm">{supabaseStats?.patientsCount || 0}</p>
+                      <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Patients Synced</p>
+                    </div>
+                    <div className="bg-[#FAFBFD] border border-[#E8EEF5] p-3.5 rounded-xl text-center space-y-1">
+                      <span className="text-lg">💳</span>
+                      <p className="font-mono font-black text-slate-800 text-sm">{supabaseStats?.paymentsCount || 0}</p>
+                      <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Payments Synced</p>
+                    </div>
+                    <div className="bg-[#FAFBFD] border border-[#E8EEF5] p-3.5 rounded-xl text-center space-y-1">
+                      <span className="text-lg">🗓️</span>
+                      <p className="font-mono font-black text-slate-800 text-sm">{supabaseStats?.appointmentsCount || 0}</p>
+                      <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Bookings Synced</p>
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-slate-400 text-center font-semibold mt-2.5">
+                    Last Cloud Replication State: <span className="text-slate-600 font-bold">{supabaseStats?.lastSyncTime ? new Date(supabaseStats.lastSyncTime).toLocaleString() : 'Pending verification (click sync)'}</span>
+                  </p>
+                </div>
+
+                {/* SQL Schema Copy Instructions */}
+                <div className="space-y-3.5 font-sans">
+                  <div>
+                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Supabase Postgres Table Schemas</h4>
+                    <p className="text-[11px] text-slate-400 mt-0.5 font-medium">Run these SQL queries in your Supabase SQL Editor to initialize the database tables.</p>
+                  </div>
+
+                  {/* Schema 1: Patients */}
+                  <div className="border border-[#E8EEF5] rounded-2xl overflow-hidden bg-slate-900 text-slate-300">
+                    <div className="bg-slate-950 px-4 py-2.5 flex justify-between items-center border-b border-slate-800 shrink-0">
+                      <span className="font-mono text-[10px] font-black text-slate-400">1. Patients Table Schema SQL</span>
+                      <button
+                        onClick={() => {
+                          const code = `CREATE TABLE IF NOT EXISTS patients (
+  id TEXT PRIMARY KEY,
+  full_name TEXT,
+  email TEXT,
+  mobile TEXT,
+  password_hash TEXT,
+  dob TEXT,
+  gender TEXT,
+  address TEXT,
+  profile_image TEXT,
+  status TEXT DEFAULT 'active',
+  created_at TEXT,
+  updated_at TEXT
+);`;
+                          navigator.clipboard.writeText(code);
+                          setSqlCopied('patients');
+                          setTimeout(() => setSqlCopied(null), 2000);
+                        }}
+                        className="py-1 px-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded text-[10px] font-bold flex items-center gap-1.5 transition-all cursor-pointer"
+                      >
+                        {sqlCopied === 'patients' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                        <span>{sqlCopied === 'patients' ? 'Copied' : 'Copy'}</span>
+                      </button>
+                    </div>
+                    <pre className="p-3.5 font-mono text-[9.5px] leading-relaxed overflow-x-auto text-slate-200">
+{`CREATE TABLE IF NOT EXISTS patients (
+  id TEXT PRIMARY KEY,
+  full_name TEXT,
+  email TEXT,
+  mobile TEXT,
+  password_hash TEXT,
+  dob TEXT,
+  gender TEXT,
+  address TEXT,
+  profile_image TEXT,
+  status TEXT DEFAULT 'active',
+  created_at TEXT,
+  updated_at TEXT
+);`}
+                    </pre>
+                  </div>
+
+                  {/* Schema 2: Payments */}
+                  <div className="border border-[#E8EEF5] rounded-2xl overflow-hidden bg-slate-900 text-slate-300">
+                    <div className="bg-slate-950 px-4 py-2.5 flex justify-between items-center border-b border-slate-800 shrink-0">
+                      <span className="font-mono text-[10px] font-black text-slate-400">2. Payments Ledger Schema SQL</span>
+                      <button
+                        onClick={() => {
+                          const code = `CREATE TABLE IF NOT EXISTS payments (
+  payment_id TEXT PRIMARY KEY,
+  booking_id TEXT,
+  patient_name TEXT,
+  patient_phone TEXT,
+  patient_email TEXT,
+  service_name TEXT,
+  service_category TEXT,
+  package_name TEXT,
+  amount NUMERIC,
+  payment_method TEXT,
+  payment_status TEXT,
+  transaction_id TEXT,
+  payment_screenshot_url TEXT,
+  created_at TEXT,
+  updated_at TEXT,
+  verified_by TEXT,
+  verification_status TEXT,
+  notes TEXT
+);`;
+                          navigator.clipboard.writeText(code);
+                          setSqlCopied('payments');
+                          setTimeout(() => setSqlCopied(null), 2000);
+                        }}
+                        className="py-1 px-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded text-[10px] font-bold flex items-center gap-1.5 transition-all cursor-pointer"
+                      >
+                        {sqlCopied === 'payments' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                        <span>{sqlCopied === 'payments' ? 'Copied' : 'Copy'}</span>
+                      </button>
+                    </div>
+                    <pre className="p-3.5 font-mono text-[9.5px] leading-relaxed overflow-x-auto text-slate-200">
+{`CREATE TABLE IF NOT EXISTS payments (
+  payment_id TEXT PRIMARY KEY,
+  booking_id TEXT,
+  patient_name TEXT,
+  patient_phone TEXT,
+  patient_email TEXT,
+  service_name TEXT,
+  service_category TEXT,
+  package_name TEXT,
+  amount NUMERIC,
+  payment_method TEXT,
+  payment_status TEXT,
+  transaction_id TEXT,
+  payment_screenshot_url TEXT,
+  created_at TEXT,
+  updated_at TEXT,
+  verified_by TEXT,
+  verification_status TEXT,
+  notes TEXT
+);`}
+                    </pre>
+                  </div>
+
+                  {/* Schema 3: Appointments */}
+                  <div className="border border-[#E8EEF5] rounded-2xl overflow-hidden bg-slate-900 text-slate-300">
+                    <div className="bg-slate-950 px-4 py-2.5 flex justify-between items-center border-b border-slate-800 shrink-0">
+                      <span className="font-mono text-[10px] font-black text-slate-400">3. Appointments Schema SQL</span>
+                      <button
+                        onClick={() => {
+                          const code = `CREATE TABLE IF NOT EXISTS appointments (
+  id TEXT PRIMARY KEY,
+  patient_id TEXT,
+  patient_name TEXT,
+  patient_age NUMERIC,
+  patient_gender TEXT,
+  mobile TEXT,
+  email TEXT,
+  selected_item_type TEXT,
+  selected_item_id TEXT,
+  selected_item_name TEXT,
+  booking_type TEXT,
+  preferred_date TEXT,
+  preferred_time_slot TEXT,
+  address TEXT,
+  location_id TEXT,
+  price_paid NUMERIC,
+  status TEXT,
+  notes TEXT,
+  created_at TEXT,
+  updated_at TEXT
+);`;
+                          navigator.clipboard.writeText(code);
+                          setSqlCopied('appointments');
+                          setTimeout(() => setSqlCopied(null), 2000);
+                        }}
+                        className="py-1 px-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded text-[10px] font-bold flex items-center gap-1.5 transition-all cursor-pointer"
+                      >
+                        {sqlCopied === 'appointments' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                        <span>{sqlCopied === 'appointments' ? 'Copied' : 'Copy'}</span>
+                      </button>
+                    </div>
+                    <pre className="p-3.5 font-mono text-[9.5px] leading-relaxed overflow-x-auto text-slate-200">
+{`CREATE TABLE IF NOT EXISTS appointments (
+  id TEXT PRIMARY KEY,
+  patient_id TEXT,
+  patient_name TEXT,
+  patient_age NUMERIC,
+  patient_gender TEXT,
+  mobile TEXT,
+  email TEXT,
+  selected_item_type TEXT,
+  selected_item_id TEXT,
+  selected_item_name TEXT,
+  booking_type TEXT,
+  preferred_date TEXT,
+  preferred_time_slot TEXT,
+  address TEXT,
+  location_id TEXT,
+  price_paid NUMERIC,
+  status TEXT,
+  notes TEXT,
+  created_at TEXT,
+  updated_at TEXT
+);`}
+                    </pre>
+                  </div>
+
+                </div>
               </div>
             </motion.div>
           </div>

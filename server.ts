@@ -21,6 +21,7 @@ import {
   Notification as DBNotification,
   initializeAndSyncFirestore
 } from "./server-db";
+import { syncToSupabase, syncStats } from "./src/services/supabaseService";
 
 async function startServer() {
   // Synchronize and seed Firestore database before booting Express
@@ -2062,6 +2063,48 @@ async function startServer() {
     } catch (err: any) {
       console.error("Error syncing with GitHub:", err);
       res.status(500).json({ error: "Failed to execute auto-sync. Please verify token permissions and internet connection." });
+    }
+  });
+
+
+  // Get Supabase sync metrics & status
+  app.get("/api/admin/supabase/stats", authenticateAdmin, (req, res) => {
+    try {
+      res.json({
+        success: true,
+        stats: syncStats,
+        config: {
+          url: process.env.SUPABASE_URL || 'https://xxpmsqiojwjznpzprdha.supabase.co',
+          keyMasked: "sb_publishable_jxE...uY545Iuv"
+        }
+      });
+    } catch (err: any) {
+      console.error("Error retrieving Supabase statistics:", err);
+      res.status(500).json({ error: "Failed to load integration statistics." });
+    }
+  });
+
+  // Manually force-sync all local database/Firestore records to Supabase
+  app.post("/api/admin/supabase/sync", authenticateAdmin, async (req, res) => {
+    try {
+      const db = getDB();
+      await syncToSupabase(db);
+      
+      if (syncStats.status === 'error') {
+        res.status(500).json({ 
+          error: `Sync completed with errors: ${syncStats.error}`,
+          stats: syncStats 
+        });
+      } else {
+        res.json({
+          success: true,
+          message: "Database records successfully synchronized to Supabase!",
+          stats: syncStats
+        });
+      }
+    } catch (err: any) {
+      console.error("Error forcing Supabase synchronization:", err);
+      res.status(500).json({ error: err.message || "Failed to synchronize database nodes." });
     }
   });
 

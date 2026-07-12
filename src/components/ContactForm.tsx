@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useMemo, useEffect } from 'react';
+import QRCode from 'qrcode';
 import { motion, AnimatePresence } from 'motion/react';
 import { Phone, Calendar, MapPin, ShieldCheck, Search, ChevronDown, Sparkles, MessageSquare, CreditCard, QrCode, Copy, Check, Upload, CheckCircle, X, RefreshCw } from 'lucide-react';
 import { healthPackages, routineTests, radiologyServices } from '../data';
@@ -23,6 +24,7 @@ export default function ContactForm({ preselectedItem, onClearPreselected }: Con
   const [selectedItemId, setSelectedItemId] = useState('');
   const [isItemDropdownOpen, setIsItemDropdownOpen] = useState(false);
   const [itemSearchQuery, setItemSearchQuery] = useState('');
+  const [localQrCodeUrl, setLocalQrCodeUrl] = useState<string>('');
   
   // Sync preselected items from clicking other CTAs
   useEffect(() => {
@@ -202,6 +204,30 @@ export default function ContactForm({ preselectedItem, onClearPreselected }: Con
   const cleanPackageNameForNote = activeSelectedItem.name.replace(/[^a-zA-Z0-9]/g, '-');
   const upiUrl = `upi://pay?pa=${CLINIC_UPI_ID}&pn=${encodeURIComponent("Amensa Diagnostics")}&am=${activeSelectedItem.price}&cu=INR&tn=${encodeURIComponent(`Booking-${cleanPackageNameForNote}`)}`;
   const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(upiUrl)}`;
+
+  // Generate self-contained local QR code in production to avoid ad-blockers / CORS / CDN 404 failures on Netlify
+  useEffect(() => {
+    let active = true;
+    QRCode.toDataURL(upiUrl, {
+      width: 250,
+      margin: 1,
+      color: {
+        dark: '#000000',
+        light: '#FFFFFF'
+      }
+    })
+      .then(url => {
+        if (active) {
+          setLocalQrCodeUrl(url);
+        }
+      })
+      .catch(err => {
+        console.error('Local QR Code Generation Error:', err);
+      });
+    return () => {
+      active = false;
+    };
+  }, [upiUrl]);
 
   return (
     <section id="contact" className="py-24 bg-white relative overflow-hidden">
@@ -831,7 +857,7 @@ export default function ContactForm({ preselectedItem, onClearPreselected }: Con
                         <div className="flex flex-col items-center justify-center py-4 bg-slate-50/50 border border-slate-100 rounded-2xl">
                           <div className="bg-white p-3 rounded-2xl shadow-md border border-slate-100/80">
                             <img
-                              src={qrCodeUrl}
+                              src={localQrCodeUrl || qrCodeUrl}
                               alt="UPI QR Code"
                               className="w-36 h-36 object-contain"
                               referrerPolicy="no-referrer"
