@@ -100,7 +100,7 @@ export default function ContactForm({ preselectedItem, onClearPreselected }: Con
   const [copiedUPI, setCopiedUPI] = useState(false);
 
   // Edit this UPI ID to your active clinic UPI ID (e.g. UPI ID or GPay/PhonePe business ID)
-  const CLINIC_UPI_ID = "amensadiagnostics@okhdfcbank";
+  const CLINIC_UPI_ID = "bansodeashish444-1@okhdfcbank";
 
   // Address states
   const [address, setAddress] = useState('');
@@ -212,7 +212,7 @@ export default function ContactForm({ preselectedItem, onClearPreselected }: Con
 
   // Construct secure upi deep link and dynamic qr code server link
   const cleanPackageNameForNote = activeSelectedItem.name.replace(/[^a-zA-Z0-9]/g, '-');
-  const upiUrl = `upi://pay?pa=${CLINIC_UPI_ID}&pn=${encodeURIComponent("Amensa Diagnostics")}&am=${activeSelectedItem.price}&cu=INR&tn=${encodeURIComponent(`Booking-${cleanPackageNameForNote}`)}`;
+  const upiUrl = `upi://pay?pa=${CLINIC_UPI_ID}&pn=${encodeURIComponent("Ashish Bansode")}&am=${activeSelectedItem.price}&cu=INR&tn=${encodeURIComponent(`Booking-${cleanPackageNameForNote}`)}`;
   const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(upiUrl)}`;
 
   // Generate self-contained local QR code in production to avoid ad-blockers / CORS / CDN 404 failures on Netlify

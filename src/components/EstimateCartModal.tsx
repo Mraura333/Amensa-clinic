@@ -88,7 +88,7 @@ export default function EstimateCartModal({
   const [localQrCodeUrl, setLocalQrCodeUrl] = useState<string>('');
 
   // Edit this UPI ID to your active clinic UPI ID (e.g. UPI ID or GPay/PhonePe business ID)
-  const CLINIC_UPI_ID = "amensadiagnostics@okhdfcbank";
+  const CLINIC_UPI_ID = "bansodeashish444-1@okhdfcbank";
 
   // Pre-fill user profile if logged in
   useEffect(() => {
@@ -130,7 +130,7 @@ export default function EstimateCartModal({
   // Construct secure upi deep link and dynamic qr code server link
   const cartItemNames = items.map(i => i.name).join(', ');
   const cleanItemNamesForNote = cartItemNames.substring(0, 30).replace(/[^a-zA-Z0-9]/g, '-');
-  const upiUrl = `upi://pay?pa=${CLINIC_UPI_ID}&pn=${encodeURIComponent("Amensa Diagnostics")}&am=${totalAmount}&cu=INR&tn=${encodeURIComponent(`Booking-${cleanItemNamesForNote}`)}`;
+  const upiUrl = `upi://pay?pa=${CLINIC_UPI_ID}&pn=${encodeURIComponent("Ashish Bansode")}&am=${totalAmount}&cu=INR&tn=${encodeURIComponent(`Booking-${cleanItemNamesForNote}`)}`;
   const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(upiUrl)}`;
 
   // Generate self-contained local QR code in production to avoid ad-blockers / CORS / CDN 404 failures on Netlify
