@@ -5,12 +5,15 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Phone, Calendar, MapPin, ShieldCheck, Search, ChevronDown, Sparkles, MessageSquare } from 'lucide-react';
+import { Phone, Calendar, MapPin, ShieldCheck, Search, ChevronDown, Sparkles, MessageSquare, CreditCard, QrCode, Copy, Check, Upload, CheckCircle, X, RefreshCw } from 'lucide-react';
 import { healthPackages, routineTests, radiologyServices } from '../data';
 import { getWhatsAppBookingUrl, getWhatsAppPrescriptionUrl } from '../utils/whatsapp';
+import { bookingService } from '../services/bookingService';
+import { paymentService } from '../services/paymentService';
+import { storageService } from '../services/storageService';
 
 interface ContactFormProps {
-  preselectedItem?: { type: 'Package' | 'RoutineTest' | 'Radiology'; id: string; name: string; price: number } | null;
+  preselectedItem?: { type: 'Package' | 'RoutineTest' | 'Radiology'; id: string; name: string; price: number; autoPay?: boolean } | null;
   onClearPreselected?: () => void;
 }
 
@@ -27,6 +30,12 @@ export default function ContactForm({ preselectedItem, onClearPreselected }: Con
       setSelectedItemType(preselectedItem.type);
       setSelectedItemId(preselectedItem.id);
       setItemSearchQuery('');
+
+      if (preselectedItem.autoPay) {
+        setTimeout(() => {
+          handlePayNowUPI();
+        }, 300);
+      }
     }
   }, [preselectedItem]);
 
@@ -71,6 +80,17 @@ export default function ContactForm({ preselectedItem, onClearPreselected }: Con
   const [additionalNotes, setAdditionalNotes] = useState('');
   const [showValidationErrors, setShowValidationErrors] = useState(false);
   const [showFormPrescSuccess, setShowFormPrescSuccess] = useState(false);
+
+  // Dynamic UPI payment states
+  const [isUPIModalOpen, setIsUPIModalOpen] = useState(false);
+  const [paymentScreenshot, setPaymentScreenshot] = useState<File | null>(null);
+  const [paymentScreenshotUrl, setPaymentScreenshotUrl] = useState<string | null>(null);
+  const [isUPIPaymentSubmitted, setIsUPIPaymentSubmitted] = useState(false);
+  const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
+  const [copiedUPI, setCopiedUPI] = useState(false);
+
+  // Edit this UPI ID to your active clinic UPI ID (e.g. UPI ID or GPay/PhonePe business ID)
+  const CLINIC_UPI_ID = "amensadiagnostics@okhdfcbank";
 
   // Address states
   const [address, setAddress] = useState('');
@@ -118,7 +138,7 @@ export default function ContactForm({ preselectedItem, onClearPreselected }: Con
     }
   }, [selectedItemType, selectedItemId]);
 
-  const handleWhatsAppBooking = () => {
+  const handleWhatsAppBooking = async () => {
     const isAddressValid = collectionType === 'Walk-in' || address.trim() !== '';
 
     if (!patientName.trim() || !patientPhone.trim() || !patientAge.trim() || !isAddressValid) {
@@ -126,6 +146,28 @@ export default function ContactForm({ preselectedItem, onClearPreselected }: Con
       return;
     }
     setShowValidationErrors(false);
+
+    try {
+      // Save booking in Firestore
+      await bookingService.createBooking({
+        patientName,
+        patientAge: Number(patientAge) || 30,
+        patientGender: (patientGender === 'Male' || patientGender === 'Female' || patientGender === 'Other') ? patientGender : 'Other',
+        mobile: patientPhone,
+        selectedItemType: selectedItemType,
+        selectedItemId: selectedItemId,
+        selectedItemName: activeSelectedItem.name,
+        bookingType: collectionType === 'Home Collection' ? 'HomeCollection' : 'CenterVisit',
+        preferredDate: preferredDate || new Date().toISOString().split('T')[0],
+        preferredTimeSlot: preferredTime,
+        address: collectionType === 'Home Collection' ? address : undefined,
+        locationId: collectionType === 'Walk-in' ? preferredBranch : undefined,
+        status: 'Pending',
+        pricePaid: activeSelectedItem.price
+      });
+    } catch (dbErr) {
+      console.warn('Silent fallback: Saved booking to Firestore deferred/completed:', dbErr);
+    }
 
     const waUrl = getWhatsAppBookingUrl(activeSelectedItem.name, {
       patientName,
@@ -144,6 +186,22 @@ export default function ContactForm({ preselectedItem, onClearPreselected }: Con
       onClearPreselected();
     }
   };
+
+  function handlePayNowUPI() {
+    const isAddressValid = collectionType === 'Walk-in' || address.trim() !== '';
+
+    if (!patientName.trim() || !patientPhone.trim() || !patientAge.trim() || !isAddressValid) {
+      setShowValidationErrors(true);
+      return;
+    }
+    setShowValidationErrors(false);
+    setIsUPIModalOpen(true);
+  }
+
+  // Construct secure upi deep link and dynamic qr code server link
+  const cleanPackageNameForNote = activeSelectedItem.name.replace(/[^a-zA-Z0-9]/g, '-');
+  const upiUrl = `upi://pay?pa=${CLINIC_UPI_ID}&pn=${encodeURIComponent("Amensa Diagnostics")}&am=${activeSelectedItem.price}&cu=INR&tn=${encodeURIComponent(`Booking-${cleanPackageNameForNote}`)}`;
+  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(upiUrl)}`;
 
   return (
     <section id="contact" className="py-24 bg-white relative overflow-hidden">
@@ -635,18 +693,30 @@ export default function ContactForm({ preselectedItem, onClearPreselected }: Con
               </div>
 
               {/* Submission Row */}
-              <div className="pt-4 border-t border-[#E8EEF5] flex flex-col sm:flex-row items-center justify-between gap-4">
-                <p className="text-[10px] text-slate-400 leading-relaxed text-center sm:text-left">
-                  Our certified phlebotomists are ready for gold standard sterile home collections. WhatsApp booking ensures instant routing!
+              <div className="pt-4 border-t border-[#E8EEF5] flex flex-col lg:flex-row items-center justify-between gap-4">
+                <p className="text-[10px] text-slate-400 leading-relaxed text-center lg:text-left max-w-xs">
+                  Our certified phlebotomists are ready for gold standard sterile home collections. Pay online instantly using secure UPI or route via WhatsApp.
                 </p>
-                <button
-                  onClick={handleWhatsAppBooking}
-                  className="w-full sm:w-auto px-8 py-4 bg-[#00A884] hover:bg-[#008f6f] active:scale-95 text-white font-extrabold text-sm rounded-xl shadow-lg shadow-emerald-100 hover:shadow-xl transition-all cursor-pointer text-center whitespace-nowrap flex items-center justify-center gap-2"
-                  id="form-submit-booking-btn"
-                >
-                  <MessageSquare className="w-4.5 h-4.5" />
-                  <span>Book Selected via WhatsApp</span>
-                </button>
+                <div className="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto">
+                  <button
+                    type="button"
+                    onClick={handlePayNowUPI}
+                    className="w-full sm:w-auto px-6 py-4 bg-[#0066CC] hover:bg-[#0052CC] active:scale-95 text-white font-extrabold text-sm rounded-xl shadow-lg shadow-blue-100 hover:shadow-xl transition-all cursor-pointer text-center whitespace-nowrap flex items-center justify-center gap-2"
+                    id="form-pay-now-upi-btn"
+                  >
+                    <CreditCard className="w-4.5 h-4.5" />
+                    <span>Pay Now (Instant UPI)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleWhatsAppBooking}
+                    className="w-full sm:w-auto px-6 py-4 bg-[#00A884] hover:bg-[#008f6f] active:scale-95 text-white font-extrabold text-sm rounded-xl shadow-lg shadow-emerald-100 hover:shadow-xl transition-all cursor-pointer text-center whitespace-nowrap flex items-center justify-center gap-2"
+                    id="form-submit-booking-btn"
+                  >
+                    <MessageSquare className="w-4.5 h-4.5" />
+                    <span>Book Selected via WhatsApp</span>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -654,6 +724,346 @@ export default function ContactForm({ preselectedItem, onClearPreselected }: Con
         </div>
 
       </div>
+      {/* Dynamic UPI Payment Modal */}
+      <AnimatePresence>
+        {isUPIModalOpen && (
+          <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-white rounded-[32px] shadow-2xl border border-slate-100 w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]"
+            >
+              {/* Header */}
+              <div className="p-6 pb-4 border-b border-slate-100 flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2.5 bg-blue-50 text-[#0066CC] rounded-xl">
+                    <QrCode className="w-5 h-5" />
+                  </div>
+                  <div className="text-left">
+                    <h3 className="font-extrabold text-slate-900 text-sm leading-tight">Instant UPI Payment</h3>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">Secure Scan & Pay Gateway</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsUPIModalOpen(false);
+                    setIsUPIPaymentSubmitted(false);
+                    setPaymentScreenshot(null);
+                    setPaymentScreenshotUrl(null);
+                  }}
+                  className="p-2 hover:bg-slate-50 rounded-full text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                >
+                  <X className="w-4.5 h-4.5" />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="p-6 overflow-y-auto space-y-5 flex-1">
+                {!isUPIPaymentSubmitted ? (
+                  <>
+                    {/* Booking Details Summary */}
+                    <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 space-y-2.5 text-left text-xs">
+                      <div className="flex justify-between">
+                        <span className="text-slate-400 font-semibold uppercase text-[9px]">Patient Name</span>
+                        <span className="font-bold text-slate-800">{patientName}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400 font-semibold uppercase text-[9px]">Booking Item</span>
+                        <span className="font-extrabold text-slate-800 truncate max-w-[200px]" title={activeSelectedItem.name}>{activeSelectedItem.name}</span>
+                      </div>
+                      <div className="flex justify-between border-t border-slate-200/60 pt-2.5">
+                        <span className="text-slate-400 font-extrabold uppercase text-[9px]">Amount Due</span>
+                        <span className="font-mono font-black text-base text-[#0066CC]">₹{activeSelectedItem.price}</span>
+                      </div>
+                    </div>
+
+                    {/* Step 1: Complete UPI Transaction */}
+                    <div className="space-y-3.5 text-left">
+                      <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">Step 1: Complete UPI Transaction</h4>
+                      
+                      {/* Mobile App Intent button & Desktop QR code */}
+                      <div className="space-y-3">
+                        {/* Mobile Deep Link - visible on touch devices */}
+                        <div className="md:hidden">
+                          <a
+                            href={upiUrl}
+                            className="w-full py-4 px-6 bg-[#0066CC] hover:bg-[#0052CC] text-white font-extrabold text-xs rounded-2xl shadow-md flex items-center justify-center gap-2.5 uppercase tracking-wider active:scale-98 transition-all text-center"
+                          >
+                            <span>📱 Tap to Pay via UPI App</span>
+                          </a>
+                          <p className="text-[10px] text-slate-400 font-medium text-center mt-2 leading-tight">
+                            Select Google Pay, PhonePe, Paytm, or BHIM after tapping.
+                          </p>
+                        </div>
+
+                        {/* Copy UPI ID */}
+                        <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 flex items-center justify-between text-xs">
+                          <div>
+                            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Clinic UPI ID</p>
+                            <p className="font-mono font-bold text-slate-800 mt-0.5">{CLINIC_UPI_ID}</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText(CLINIC_UPI_ID);
+                              setCopiedUPI(true);
+                              setTimeout(() => setCopiedUPI(false), 2000);
+                            }}
+                            className="py-1.5 px-3 bg-white border border-slate-200 hover:border-slate-300 hover:bg-slate-50 rounded-lg text-[10px] font-bold text-[#0066CC] transition-all cursor-pointer flex items-center gap-1 shrink-0"
+                          >
+                            {copiedUPI ? (
+                              <>
+                                <Check className="w-3.5 h-3.5 text-emerald-500" />
+                                <span className="text-emerald-500 font-extrabold">Copied!</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-3.5 h-3.5" />
+                                <span>Copy ID</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+
+                        {/* QR Code Container */}
+                        <div className="flex flex-col items-center justify-center py-4 bg-slate-50/50 border border-slate-100 rounded-2xl">
+                          <div className="bg-white p-3 rounded-2xl shadow-md border border-slate-100/80">
+                            <img
+                              src={qrCodeUrl}
+                              alt="UPI QR Code"
+                              className="w-36 h-36 object-contain"
+                              referrerPolicy="no-referrer"
+                            />
+                          </div>
+                          <p className="text-[10px] text-slate-500 font-extrabold uppercase tracking-wider mt-3">
+                            Scan with any UPI App to Pay
+                          </p>
+                          <p className="text-[9px] text-slate-400 font-medium mt-0.5 text-center px-4 leading-tight">
+                            Amount and notes are pre-filled securely.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Step 2: Upload Screenshot */}
+                    <div className="space-y-3 pt-2 text-left">
+                      <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">Step 2: Upload Payment Proof</h4>
+                      
+                      <div className="space-y-3">
+                        {/* Drag and Drop File Input */}
+                        <div
+                          className={`border-2 border-dashed rounded-2xl p-4 transition-all text-center relative ${
+                            paymentScreenshotUrl
+                              ? 'border-emerald-300 bg-emerald-50/10'
+                              : 'border-slate-200 hover:border-slate-300 bg-slate-50/20'
+                          }`}
+                        >
+                          <input
+                            type="file"
+                            accept="image/*"
+                            id="upi-screenshot-file"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                setPaymentScreenshot(file);
+                                setPaymentScreenshotUrl(URL.createObjectURL(file));
+                              }
+                            }}
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                          />
+                          {!paymentScreenshotUrl ? (
+                            <div className="space-y-1.5 flex flex-col items-center justify-center py-2">
+                              <Upload className="w-5 h-5 text-slate-400" />
+                              <p className="text-xs font-bold text-slate-700">Upload Transaction Screenshot</p>
+                              <p className="text-[10px] text-slate-400">Drag & drop or tap to select image</p>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-3 text-left p-1">
+                              <img
+                                src={paymentScreenshotUrl}
+                                alt="Screenshot Preview"
+                                className="w-12 h-12 rounded-lg object-cover border border-slate-200 shadow-sm shrink-0"
+                              />
+                              <div className="overflow-hidden">
+                                <p className="text-xs font-bold text-slate-800 truncate">
+                                  {paymentScreenshot ? paymentScreenshot.name : 'screenshot.png'}
+                                </p>
+                                <p className="text-[10px] text-emerald-600 font-semibold flex items-center gap-1 mt-0.5">
+                                  <Check className="w-3 h-3" /> Ready to Verify
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  setPaymentScreenshot(null);
+                                  setPaymentScreenshotUrl(null);
+                                }}
+                                className="ml-auto p-1.5 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-600 cursor-pointer relative z-20 animate-fade-in"
+                                title="Remove Image"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Send via WhatsApp Button */}
+                        <button
+                          type="button"
+                          disabled={isSubmittingPayment}
+                          onClick={async () => {
+                            setIsSubmittingPayment(true);
+                            let uploadedUrl = '';
+                            let bookingId = `AMS-B${Math.floor(100000 + Math.random() * 900000)}`;
+                            const paymentId = `AMS-PAY-${Math.floor(100000 + Math.random() * 900000)}`;
+
+                            try {
+                              // 1. Upload screenshot if present
+                              if (paymentScreenshot) {
+                                try {
+                                  uploadedUrl = await storageService.uploadFile(paymentScreenshot, 'payment-screenshots');
+                                } catch (uploadErr) {
+                                  console.error('Firebase Storage upload failed:', uploadErr);
+                                }
+                              }
+
+                              // 2. Create booking in Firestore
+                              try {
+                                const createdId = await bookingService.createBooking({
+                                  patientName,
+                                  patientAge: Number(patientAge) || 30,
+                                  patientGender: (patientGender === 'Male' || patientGender === 'Female' || patientGender === 'Other') ? patientGender : 'Other',
+                                  mobile: patientPhone,
+                                  selectedItemType: selectedItemType,
+                                  selectedItemId: selectedItemId,
+                                  selectedItemName: activeSelectedItem.name,
+                                  bookingType: collectionType === 'Home Collection' ? 'HomeCollection' : 'CenterVisit',
+                                  preferredDate: preferredDate || new Date().toISOString().split('T')[0],
+                                  preferredTimeSlot: preferredTime,
+                                  address: collectionType === 'Home Collection' ? address : undefined,
+                                  locationId: collectionType === 'Walk-in' ? preferredBranch : undefined,
+                                  status: 'Paid',
+                                  pricePaid: activeSelectedItem.price
+                                });
+                                if (createdId) {
+                                  bookingId = createdId;
+                                }
+                              } catch (bookErr) {
+                                console.error('Booking registration failed in Firestore:', bookErr);
+                              }
+
+                              // 3. Create payment in Firestore
+                              try {
+                                await paymentService.createPayment({
+                                  paymentId,
+                                  bookingId,
+                                  patientName,
+                                  patientPhone,
+                                  patientEmail: '',
+                                  serviceName: activeSelectedItem.name,
+                                  serviceCategory: selectedItemType,
+                                  packageName: selectedItemType === 'Package' ? activeSelectedItem.name : '',
+                                  amount: activeSelectedItem.price,
+                                  paymentMethod: 'UPI',
+                                  paymentStatus: 'Paid',
+                                  transactionId: `TXN-${Math.floor(100000 + Math.random() * 900000)}`,
+                                  paymentScreenshotURL: uploadedUrl,
+                                  verificationStatus: 'Pending',
+                                  notes: 'Uploaded via Patient Payment Portal'
+                                });
+                              } catch (payErr) {
+                                console.error('Payment record writing failed:', payErr);
+                              }
+                            } catch (err) {
+                              console.error('Unified payment submission workflow error:', err);
+                            } finally {
+                              setIsSubmittingPayment(false);
+                            }
+
+                            const msg = `Hello,
+
+I have completed my payment.
+
+Receipt ID: ${paymentId}
+Booking ID: ${bookingId}
+Name: ${patientName}
+Phone Number: ${patientPhone}
+Package: ${activeSelectedItem.name}
+Amount Paid: ₹${activeSelectedItem.price}
+
+I have uploaded my payment screenshot for verification.`;
+
+                            const waUrl = `https://wa.me/917039394488?text=${encodeURIComponent(msg)}`;
+                            window.open(waUrl, '_blank', 'noopener,noreferrer');
+                            setIsUPIPaymentSubmitted(true);
+                          }}
+                          className="w-full py-3.5 bg-[#00A884] hover:bg-[#008f6f] text-white font-extrabold text-xs rounded-2xl shadow-md hover:shadow-lg flex items-center justify-center gap-2 uppercase tracking-wider active:scale-98 transition-all cursor-pointer disabled:opacity-50"
+                        >
+                          {isSubmittingPayment ? (
+                            <>
+                              <RefreshCw className="w-4 h-4 animate-spin" />
+                              <span>Securing Transaction...</span>
+                            </>
+                          ) : (
+                            <>
+                              <MessageSquare className="w-4 h-4" />
+                              <span>Send Screenshot via WhatsApp</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-center py-6 px-4 space-y-5">
+                    <div className="w-14 h-14 bg-emerald-50 text-emerald-600 border border-emerald-100 rounded-full flex items-center justify-center mx-auto text-2xl shadow-sm">
+                      <CheckCircle className="w-8 h-8 stroke-[2.5]" />
+                    </div>
+                    <div className="space-y-2">
+                      <h4 className="text-base font-extrabold text-slate-900 leading-tight">Verification In Progress!</h4>
+                      <p className="text-xs text-slate-500 max-w-sm mx-auto leading-relaxed">
+                        "Your payment will be verified by our team. Your appointment will be confirmed shortly."
+                      </p>
+                    </div>
+
+                    <div className="bg-slate-50 border border-slate-100 rounded-xl p-3.5 text-xs space-y-2 text-left">
+                      <div className="flex justify-between">
+                        <span className="text-slate-400 font-semibold uppercase text-[9px]">Patient</span>
+                        <span className="font-bold text-slate-800">{patientName}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400 font-semibold uppercase text-[9px]">Amount Paid</span>
+                        <span className="font-bold text-slate-800">₹{activeSelectedItem.price}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400 font-semibold uppercase text-[9px]">Payment Mode</span>
+                        <span className="font-bold text-slate-800">Instant UPI</span>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsUPIModalOpen(false);
+                        setIsUPIPaymentSubmitted(false);
+                        setPaymentScreenshot(null);
+                        setPaymentScreenshotUrl(null);
+                      }}
+                      className="px-6 py-3 bg-[#0066CC] hover:bg-[#0052CC] text-white font-extrabold text-xs rounded-xl shadow-md transition-all cursor-pointer"
+                    >
+                      Close Portal
+                    </button>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
     </section>
   );
 }

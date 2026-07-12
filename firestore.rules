@@ -51,5 +51,13 @@ service cloud.firestore {
       allow read: if isAdmin() || (isAuth() && resource.data.patientId == request.auth.uid);
       allow write: if isAdmin();
     }
+
+    // Payments Rules
+    match /payments/{paymentId} {
+      // Allow read, create, and update for patient portal/guests uploads and admin panel operations
+      allow read, create, update: if true;
+      // Only administrator can permanently delete payments logs
+      allow delete: if isAdmin();
+    }
   }
 }

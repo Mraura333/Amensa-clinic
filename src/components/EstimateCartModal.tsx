@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Trash2, ShieldCheck, Calendar, Phone, Clock, MessageSquare, Calculator, MapPin, CreditCard, QrCode, Landmark, Wallet, Check, AlertTriangle, Loader2 } from 'lucide-react';
+import { X, Trash2, ShieldCheck, Calendar, Phone, Clock, MessageSquare, Calculator, MapPin, CreditCard, QrCode, Landmark, Wallet, Check, AlertTriangle, Loader2, Copy, Upload, CheckCircle } from 'lucide-react';
 
 
 export interface CartItem {
@@ -70,7 +70,7 @@ export default function EstimateCartModal({
   const [patientEmail, setPatientEmail] = useState('');
 
   // Payment gateway states
-  const [paymentMethod, setPaymentMethod] = useState<'WhatsApp' | 'Online'>('WhatsApp');
+  const [paymentMethod, setPaymentMethod] = useState<'WhatsApp' | 'Online' | 'UPI'>('WhatsApp');
   const [paymentStatus, setPaymentStatus] = useState<'idle' | 'processing' | 'success' | 'failed'>('idle');
   const [createdOrderId, setCreatedOrderId] = useState<string | null>(null);
   const [createdSessionId, setCreatedSessionId] = useState<string | null>(null);
@@ -78,6 +78,15 @@ export default function EstimateCartModal({
   const [createdBookings, setCreatedBookings] = useState<any[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isCfSimulated, setIsCfSimulated] = useState(false);
+
+  // Dynamic UPI payment states
+  const [isUPICheckoutActive, setIsUPICheckoutActive] = useState(false);
+  const [paymentScreenshot, setPaymentScreenshot] = useState<File | null>(null);
+  const [paymentScreenshotUrl, setPaymentScreenshotUrl] = useState<string | null>(null);
+  const [copiedUPI, setCopiedUPI] = useState(false);
+
+  // Edit this UPI ID to your active clinic UPI ID (e.g. UPI ID or GPay/PhonePe business ID)
+  const CLINIC_UPI_ID = "amensadiagnostics@okhdfcbank";
 
   // Pre-fill user profile if logged in
   useEffect(() => {
@@ -115,6 +124,12 @@ export default function EstimateCartModal({
   const subtotal = items.reduce((sum, item) => sum + item.price, 0);
   const visitCharge = subtotal > 0 && subtotal < 500 ? 100 : 0;
   const totalAmount = subtotal + visitCharge;
+
+  // Construct secure upi deep link and dynamic qr code server link
+  const cartItemNames = items.map(i => i.name).join(', ');
+  const cleanItemNamesForNote = cartItemNames.substring(0, 30).replace(/[^a-zA-Z0-9]/g, '-');
+  const upiUrl = `upi://pay?pa=${CLINIC_UPI_ID}&pn=${encodeURIComponent("Amensa Diagnostics")}&am=${totalAmount}&cu=INR&tn=${encodeURIComponent(`Booking-${cleanItemNamesForNote}`)}`;
+  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(upiUrl)}`;
 
   // Detect whether specific Radiology items are present in the estimate cart to enforce schedule slots
   const hasSonography = useMemo(() => items.some(item => item.id === 'rad-sonography'), [items]);
@@ -215,6 +230,17 @@ Please confirm my appointment. Thank you.`;
     const waUrl = `https://wa.me/917039394488?text=${encodeURIComponent(message)}`;
     window.open(waUrl, '_blank', 'noopener,noreferrer');
     onClose();
+  };
+
+  const handleUPIPaymentTrigger = () => {
+    const isAddressValid = collectionType === 'Walk-in' || address.trim() !== '';
+
+    if (!patientName.trim() || !patientPhone.trim() || !patientAge.trim() || !isAddressValid) {
+      setShowValidationErrors(true);
+      return;
+    }
+    setShowValidationErrors(false);
+    setIsUPICheckoutActive(true);
   };
 
   const handleOnlinePayment = async () => {
@@ -454,7 +480,9 @@ Please confirm my appointment. Thank you.`;
                     </div>
 
                     {/* Patient Details & Scheduling Form */}
-                    <div className="border-t border-slate-100 pt-6 space-y-4">
+                    {!isUPICheckoutActive ? (
+                      <>
+                        <div className="border-t border-slate-100 pt-6 space-y-4">
                       <div>
                         <h4 className="text-sm font-extrabold text-slate-800 uppercase tracking-wider">
                           Patient & Booking Information
@@ -672,7 +700,7 @@ Please confirm my appointment. Thank you.`;
                           <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2 text-left">
                             Choose Booking & Payment Method *
                           </label>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
                             <button
                               type="button"
                               onClick={() => setPaymentMethod('WhatsApp')}
@@ -687,7 +715,25 @@ Please confirm my appointment. Thank you.`;
                               </div>
                               <div>
                                 <p className="font-extrabold text-xs">Book & Pay on WhatsApp</p>
-                                <p className="text-[9px] font-medium text-slate-400 mt-0.5">Pay cash/UPI during sample collection</p>
+                                <p className="text-[9px] font-medium text-slate-400 mt-0.5">Pay cash/UPI during collection</p>
+                              </div>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setPaymentMethod('UPI')}
+                              className={`p-4 rounded-2xl font-bold text-xs transition-all border flex items-center gap-3 justify-start text-left cursor-pointer ${
+                                paymentMethod === 'UPI'
+                                  ? 'bg-amber-50/50 border-amber-500 text-amber-700 shadow-sm'
+                                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                              }`}
+                            >
+                              <div className="p-2.5 bg-amber-50 rounded-xl text-amber-600">
+                                <QrCode className="w-5 h-5" />
+                              </div>
+                              <div>
+                                <p className="font-extrabold text-xs">Instant UPI / QR Code</p>
+                                <p className="text-[9px] font-medium text-slate-400 mt-0.5">Scan & pay instantly with any UPI app</p>
                               </div>
                             </button>
 
@@ -705,7 +751,7 @@ Please confirm my appointment. Thank you.`;
                               </div>
                               <div>
                                 <p className="font-extrabold text-xs">Pay Online Securely</p>
-                                <p className="text-[9px] font-medium text-slate-400 mt-0.5">UPI, Cards, Net Banking via Cashfree</p>
+                                <p className="text-[9px] font-medium text-slate-400 mt-0.5">Cards & Net Banking via Cashfree</p>
                               </div>
                             </button>
                           </div>
@@ -752,6 +798,216 @@ Please confirm my appointment. Thank you.`;
                         </p>
                       </div>
                     </div>
+                      </>
+                    ) : (
+                      /* UPI Scan & Pay View inside EstimateCartModal */
+                      <div className="space-y-6 text-left">
+                        <div className="flex items-center gap-2.5 pb-4 border-b border-slate-100 justify-between">
+                          <div className="flex items-center gap-2.5">
+                            <div className="p-2.5 bg-blue-50 text-[#0066CC] rounded-xl">
+                              <QrCode className="w-5 h-5" />
+                            </div>
+                            <div>
+                              <h3 className="text-sm font-extrabold text-slate-900 leading-tight">Instant UPI Payment</h3>
+                              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">Secure Scan & Pay Gateway</p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setIsUPICheckoutActive(false)}
+                            className="p-1.5 hover:bg-slate-50 text-slate-400 hover:text-slate-600 rounded-lg transition-colors cursor-pointer"
+                            title="Go Back"
+                          >
+                            <X className="w-5 h-5" />
+                          </button>
+                        </div>
+
+                        {/* Booking Details Summary */}
+                        <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 space-y-2.5 text-xs">
+                          <div className="flex justify-between">
+                            <span className="text-slate-400 font-semibold uppercase text-[9px]">Patient Name</span>
+                            <span className="font-bold text-slate-800">{patientName}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-slate-400 font-semibold uppercase text-[9px]">Booking Items</span>
+                            <span className="font-bold text-slate-800 truncate max-w-[200px]" title={cartItemNames}>
+                              {cartItemNames}
+                            </span>
+                          </div>
+                          {visitCharge > 0 && (
+                            <div className="flex justify-between">
+                              <span className="text-slate-400 font-semibold uppercase text-[9px]">Visit Charge</span>
+                              <span className="font-bold text-slate-800">₹{visitCharge}</span>
+                            </div>
+                          )}
+                          <div className="flex justify-between border-t border-slate-200/60 pt-2.5">
+                            <span className="text-slate-400 font-extrabold uppercase text-[9px]">Total Amount</span>
+                            <span className="font-mono font-black text-base text-[#0066CC]">₹{totalAmount}</span>
+                          </div>
+                        </div>
+
+                        {/* Step 1: Complete UPI Transaction */}
+                        <div className="space-y-3.5">
+                          <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">Step 1: Complete UPI Transaction</h4>
+                          
+                          <div className="space-y-3">
+                            {/* Mobile Intent deep link */}
+                            <div className="md:hidden">
+                              <a
+                                href={upiUrl}
+                                className="w-full py-4 px-6 bg-[#0066CC] hover:bg-[#0052CC] text-white font-extrabold text-xs rounded-2xl shadow-md flex items-center justify-center gap-2.5 uppercase tracking-wider active:scale-98 transition-all text-center"
+                              >
+                                <span>📱 Tap to Pay via UPI App</span>
+                              </a>
+                              <p className="text-[10px] text-slate-400 font-medium text-center mt-2 leading-tight">
+                                Select Google Pay, PhonePe, Paytm, or BHIM after tapping.
+                              </p>
+                            </div>
+
+                            {/* Copy UPI ID */}
+                            <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 flex items-center justify-between text-xs">
+                              <div>
+                                <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Clinic UPI ID</p>
+                                <p className="font-mono font-bold text-slate-800 mt-0.5">{CLINIC_UPI_ID}</p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(CLINIC_UPI_ID);
+                                  setCopiedUPI(true);
+                                  setTimeout(() => setCopiedUPI(false), 2000);
+                                }}
+                                className="py-1.5 px-3 bg-white border border-slate-200 hover:border-slate-300 hover:bg-slate-50 rounded-lg text-[10px] font-bold text-[#0066CC] transition-all cursor-pointer flex items-center gap-1 shrink-0"
+                              >
+                                {copiedUPI ? (
+                                  <>
+                                    <Check className="w-3.5 h-3.5 text-emerald-500" />
+                                    <span className="text-emerald-500 font-extrabold">Copied!</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Copy className="w-3.5 h-3.5" />
+                                    <span>Copy ID</span>
+                                  </>
+                                )}
+                              </button>
+                            </div>
+
+                            {/* QR Code */}
+                            <div className="flex flex-col items-center justify-center py-4 bg-slate-50/50 border border-slate-100 rounded-2xl">
+                              <div className="bg-white p-3 rounded-2xl shadow-md border border-slate-100/80">
+                                <img
+                                  src={qrCodeUrl}
+                                  alt="UPI QR Code"
+                                  className="w-36 h-36 object-contain"
+                                  referrerPolicy="no-referrer"
+                                />
+                              </div>
+                              <p className="text-[10px] text-slate-500 font-extrabold uppercase tracking-wider mt-3">
+                                Scan with any UPI App to Pay
+                              </p>
+                              <p className="text-[9px] text-slate-400 font-medium mt-0.5 text-center px-4 leading-tight">
+                                Amount and notes are pre-filled securely.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Step 2: Upload Proof */}
+                        <div className="space-y-3 pt-2">
+                          <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">Step 2: Upload Payment Proof</h4>
+                          
+                          <div className="space-y-3">
+                            {/* Drag and Drop */}
+                            <div
+                              className={`border-2 border-dashed rounded-2xl p-4 transition-all text-center relative ${
+                                paymentScreenshotUrl
+                                  ? 'border-emerald-300 bg-emerald-50/10'
+                                  : 'border-slate-200 hover:border-slate-300 bg-slate-50/20'
+                              }`}
+                            >
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) {
+                                    setPaymentScreenshot(file);
+                                    setPaymentScreenshotUrl(URL.createObjectURL(file));
+                                  }
+                                }}
+                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                              />
+                              {!paymentScreenshotUrl ? (
+                                <div className="space-y-1.5 flex flex-col items-center justify-center py-2">
+                                  <Upload className="w-5 h-5 text-slate-400" />
+                                  <p className="text-xs font-bold text-slate-700">Upload Transaction Screenshot</p>
+                                  <p className="text-[10px] text-slate-400">Drag & drop or tap to select image</p>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-3 text-left p-1">
+                                  <img
+                                    src={paymentScreenshotUrl}
+                                    alt="Screenshot Preview"
+                                    className="w-12 h-12 rounded-lg object-cover border border-slate-200 shadow-sm shrink-0"
+                                  />
+                                  <div className="overflow-hidden">
+                                    <p className="text-xs font-bold text-slate-800 truncate">
+                                      {paymentScreenshot ? paymentScreenshot.name : 'screenshot.png'}
+                                    </p>
+                                    <p className="text-[10px] text-emerald-600 font-semibold flex items-center gap-1 mt-0.5">
+                                      <Check className="w-3 h-3" /> Ready to Verify
+                                    </p>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      setPaymentScreenshot(null);
+                                      setPaymentScreenshotUrl(null);
+                                    }}
+                                    className="ml-auto p-1.5 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-600 cursor-pointer relative z-20 animate-fade-in"
+                                  >
+                                    <X className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Send via WhatsApp */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const msg = `Hello,
+
+I have completed my payment.
+
+Name: ${patientName}
+Phone Number: ${patientPhone}
+Package: ${cartItemNames}
+Amount Paid: ₹${totalAmount}
+
+I am attaching my payment screenshot for verification.`;
+
+                                const waUrl = `https://wa.me/917039394488?text=${encodeURIComponent(msg)}`;
+                                window.open(waUrl, '_blank', 'noopener,noreferrer');
+                                
+                                // Transition to success state
+                                onClearCart();
+                                setPaymentStatus('success');
+                                setIsUPICheckoutActive(false);
+                                setPaymentScreenshot(null);
+                                setPaymentScreenshotUrl(null);
+                              }}
+                              className="w-full py-3.5 bg-[#00A884] hover:bg-[#008f6f] text-white font-extrabold text-xs rounded-2xl shadow-md hover:shadow-lg flex items-center justify-center gap-2 uppercase tracking-wider active:scale-98 transition-all cursor-pointer"
+                            >
+                              <MessageSquare className="w-4 h-4" />
+                              <span>Send Screenshot via WhatsApp</span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </>
                 ) : (
                   /* Success View inside Modal for simulated checkout */
@@ -811,7 +1067,7 @@ Please confirm my appointment. Thank you.`;
               </div>
 
               {/* Modal Footer */}
-              {items.length > 0 && paymentStatus !== 'success' && (
+              {items.length > 0 && paymentStatus !== 'success' && !isUPICheckoutActive && (
                 <div className="border-t border-slate-100 px-6 py-4 bg-slate-50 flex flex-col sm:flex-row items-center justify-between gap-4">
                   <p className="text-[10px] text-slate-400 text-center sm:text-left max-w-xs">
                     Phlebotomist arrives within 30 minutes in Mulund & Dombivli. Order compilation is secure and fast.
@@ -825,6 +1081,15 @@ Please confirm my appointment. Thank you.`;
                       >
                         <MessageSquare className="w-4 h-4" />
                         <span>Book via WhatsApp</span>
+                      </button>
+                    ) : paymentMethod === 'UPI' ? (
+                      <button
+                        onClick={handleUPIPaymentTrigger}
+                        className="w-full sm:w-auto px-7 py-3.5 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-black text-xs rounded-xl shadow-md shadow-amber-100 hover:shadow-lg transition-all cursor-pointer flex items-center justify-center gap-2 uppercase tracking-wider"
+                        id="cart-upi-pay-btn"
+                      >
+                        <QrCode className="w-4 h-4" />
+                        <span>Pay via UPI: ₹{totalAmount}</span>
                       </button>
                     ) : (
                       <button

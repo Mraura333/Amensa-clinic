@@ -25,7 +25,7 @@ import { getWhatsAppBookingUrl } from '../utils/whatsapp';
 import PrescriptionUploadSection from './PrescriptionUploadSection';
 
 interface RoutineTestsSectionProps {
-  onBookTest: (test: { type: 'RoutineTest'; id: string; name: string; price: number }) => void;
+  onBookTest: (test: { type: 'RoutineTest'; id: string; name: string; price: number; autoPay?: boolean }) => void;
   onAddToEstimate?: (item: { type: 'Package' | 'RoutineTest' | 'Radiology'; id: string; name: string; price: number }) => void;
   tests?: Test[];
 }
@@ -352,10 +352,17 @@ export default function RoutineTestsSection({ onBookTest, onAddToEstimate, tests
                             {/* Book Now Button */}
                             <button
                               onClick={() => onBookTest({ type: 'RoutineTest', id: test.id, name: test.name, price: test.price })}
-                              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#EAF7FF] hover:bg-[#0066CC] hover:text-white text-[#0066CC] text-xs font-bold transition-all duration-300 shadow-sm cursor-pointer hover:shadow"
+                              className="inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-[#EAF7FF] hover:bg-[#0066CC] hover:text-white text-[#0066CC] text-xs font-bold transition-all duration-300 shadow-sm cursor-pointer hover:shadow"
                             >
-                              <span>Book Now</span>
-                              <ArrowRight className="w-3.5 h-3.5" />
+                              <span>Book</span>
+                            </button>
+
+                            {/* Pay Now Button */}
+                            <button
+                              onClick={() => onBookTest({ type: 'RoutineTest', id: test.id, name: test.name, price: test.price, autoPay: true })}
+                              className="inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-emerald-50 hover:bg-[#00A884] hover:text-white text-[#00A884] text-xs font-bold transition-all duration-300 shadow-sm cursor-pointer hover:shadow"
+                            >
+                              <span>Pay Now</span>
                             </button>
 
                             {/* Add to Cart Button */}
@@ -431,43 +438,49 @@ export default function RoutineTestsSection({ onBookTest, onAddToEstimate, tests
                         <Clock className="w-3.5 h-3.5 text-slate-400" />
                         <span>TAT: {test.reportTime}</span>
                       </div>
-                    </div>
-
-                    {/* Mobile Action Buttons Stack (Explicitly 44px+ Touch Target height) */}
-                    <div className="grid grid-cols-6 gap-2.5 mt-4">
+                                        {/* Mobile Action Buttons Stack (Explicitly 44px+ Touch Target height) */}
+                    <div className="grid grid-cols-12 gap-2 mt-4">
                       {/* WhatsApp Inquiry Button */}
                       <a
                         href={getWhatsAppUrl(test)}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="col-span-2 h-11 bg-[#EAFBEF] hover:bg-emerald-500/10 text-emerald-600 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 border border-emerald-200/50 cursor-pointer"
+                        className="col-span-3 h-11 bg-[#EAFBEF] hover:bg-emerald-500/10 text-emerald-600 font-bold text-xs rounded-xl flex items-center justify-center border border-emerald-200/50 cursor-pointer"
                         style={{ minHeight: '44px' }}
                       >
                         <MessageCircle className="w-4.5 h-4.5 text-emerald-500" />
-                        <span>Inquire</span>
                       </a>
 
                       {/* Primary Booking Button */}
                       <button
                         onClick={() => onBookTest({ type: 'RoutineTest', id: test.id, name: test.name, price: test.price })}
-                        className="col-span-2 h-11 bg-[#0066CC] hover:bg-[#0052CC] text-white font-extrabold text-[11px] rounded-xl shadow-md shadow-[#0066CC]/15 flex items-center justify-center gap-1 cursor-pointer"
+                        className="col-span-3 h-11 bg-[#0066CC] hover:bg-[#0052CC] text-white font-extrabold text-[11px] rounded-xl shadow-md shadow-[#0066CC]/15 flex items-center justify-center gap-1 cursor-pointer"
                         style={{ minHeight: '44px' }}
                         title="Book Routine Test"
                       >
-                        <ShoppingCart className="w-4 h-4" />
                         <span>Book</span>
+                      </button>
+
+                      {/* Pay Now Button */}
+                      <button
+                        onClick={() => onBookTest({ type: 'RoutineTest', id: test.id, name: test.name, price: test.price, autoPay: true })}
+                        className="col-span-3 h-11 bg-gradient-to-r from-[#00A884] to-[#008f6f] hover:from-[#008f6f] hover:to-[#007a5f] text-white font-extrabold text-[11px] rounded-xl shadow-md shadow-emerald-200/15 flex items-center justify-center gap-1 cursor-pointer"
+                        style={{ minHeight: '44px' }}
+                        title="Pay Now"
+                      >
+                        <span>Pay</span>
                       </button>
 
                       {/* Estimate Button */}
                       <button
                         onClick={() => onAddToEstimate && onAddToEstimate({ type: 'RoutineTest', id: test.id, name: test.name, price: test.price })}
-                        className="col-span-2 h-11 bg-slate-100 hover:bg-[#0066CC]/10 text-slate-700 hover:text-[#0066CC] border border-slate-200 hover:border-[#0066CC]/30 font-extrabold text-[11px] rounded-xl flex items-center justify-center gap-1 cursor-pointer"
+                        className="col-span-3 h-11 bg-slate-100 hover:bg-[#0066CC]/10 text-slate-700 hover:text-[#0066CC] border border-slate-200 hover:border-[#0066CC]/30 font-extrabold text-[11px] rounded-xl flex items-center justify-center gap-1 cursor-pointer"
                         style={{ minHeight: '44px' }}
                         title="Add to Cart"
                       >
                         <span>+ Cart</span>
                       </button>
-                    </div>
+                    </div>  </div>
                   </motion.div>
                 ))
               ) : (

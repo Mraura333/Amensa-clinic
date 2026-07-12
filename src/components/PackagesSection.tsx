@@ -23,7 +23,7 @@ import { healthPackages } from '../data';
 import { getWhatsAppBookingUrl } from '../utils/whatsapp';
 
 interface PackagesSectionProps {
-  onBookPackage: (packageItem: { type: 'Package'; id: string; name: string; price: number }) => void;
+  onBookPackage: (packageItem: { type: 'Package'; id: string; name: string; price: number; autoPay?: boolean }) => void;
   onAddToEstimate?: (item: { type: 'Package' | 'RoutineTest' | 'Radiology'; id: string; name: string; price: number }) => void;
   packages?: HealthPackage[];
 }
@@ -316,16 +316,22 @@ BOOKING DETAILS:
                   
                   {/* Primary & Secondary Buttons */}
                   <div className="space-y-3 mb-4">
-                    <div className="grid grid-cols-5 gap-2.5">
+                    <div className="grid grid-cols-12 gap-2">
                       <button
                         onClick={() => onBookPackage({ type: 'Package', id: pkg.id, name: pkg.name, price: pkg.price })}
-                        className="col-span-3 py-3.5 bg-[#0066CC] hover:bg-[#0052CC] text-white rounded-2xl font-black text-xs shadow-md shadow-blue-200/50 hover:shadow-lg hover:shadow-blue-300/60 active:scale-98 transition-all cursor-pointer text-center block uppercase tracking-wider"
+                        className="col-span-5 py-3.5 bg-[#0066CC] hover:bg-[#0052CC] text-white rounded-2xl font-black text-[10px] shadow-md shadow-blue-200/50 hover:shadow-lg hover:shadow-blue-300/60 active:scale-98 transition-all cursor-pointer text-center block uppercase tracking-wider"
                       >
                         Book Now
                       </button>
                       <button
+                        onClick={() => onBookPackage({ type: 'Package', id: pkg.id, name: pkg.name, price: pkg.price, autoPay: true })}
+                        className="col-span-4 py-3.5 bg-gradient-to-r from-[#00A884] to-[#008f6f] hover:from-[#008f6f] hover:to-[#007a5f] text-white rounded-2xl font-black text-[10px] shadow-md shadow-emerald-200/50 hover:shadow-lg hover:shadow-emerald-300/60 active:scale-98 transition-all cursor-pointer text-center block uppercase tracking-wider"
+                      >
+                        Pay Now
+                      </button>
+                      <button
                         onClick={() => onAddToEstimate && onAddToEstimate({ type: 'Package', id: pkg.id, name: pkg.name, price: pkg.price })}
-                        className="col-span-2 py-3.5 bg-slate-100 hover:bg-[#0066CC]/10 text-slate-700 hover:text-[#0066CC] border border-slate-200 hover:border-[#0066CC]/30 rounded-2xl font-extrabold text-xs transition-all cursor-pointer flex items-center justify-center gap-1"
+                        className="col-span-3 py-3.5 bg-slate-100 hover:bg-[#0066CC]/10 text-slate-700 hover:text-[#0066CC] border border-slate-200 hover:border-[#0066CC]/30 rounded-2xl font-extrabold text-[10px] transition-all cursor-pointer flex items-center justify-center"
                         title="Add to Cart"
                       >
                         <span>+ Cart</span>

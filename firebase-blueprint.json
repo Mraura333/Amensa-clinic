@@ -86,6 +86,32 @@
         "id": { "type": "string" },
         "updatedAt": { "type": "string", "format": "date-time" }
       }
+    },
+    "Payment": {
+      "title": "Payment",
+      "description": "Payment transactions and verification metadata",
+      "type": "object",
+      "properties": {
+        "paymentId": { "type": "string" },
+        "bookingId": { "type": "string" },
+        "patientName": { "type": "string" },
+        "patientPhone": { "type": "string" },
+        "patientEmail": { "type": "string" },
+        "serviceName": { "type": "string" },
+        "serviceCategory": { "type": "string" },
+        "packageName": { "type": "string" },
+        "amount": { "type": "number" },
+        "paymentMethod": { "type": "string" },
+        "paymentStatus": { "type": "string", "enum": ["Pending", "Paid", "Failed", "Verified"] },
+        "transactionId": { "type": "string" },
+        "paymentScreenshotURL": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "verifiedBy": { "type": "string" },
+        "verificationStatus": { "type": "string", "enum": ["Pending", "Approved", "Rejected"] },
+        "notes": { "type": "string" }
+      },
+      "required": ["paymentId", "bookingId", "patientName", "patientPhone", "amount", "paymentMethod", "paymentStatus", "transactionId", "verificationStatus"]
     }
   },
   "firestore": {
@@ -104,6 +130,10 @@
     "/reports/{reportId}": {
       "schema": "Report",
       "description": "Uploaded patient reports"
+    },
+    "/payments/{paymentId}": {
+      "schema": "Payment",
+      "description": "Patient payment transactions"
     },
     "/cms/{documentId}": {
       "schema": "CmsDocument",

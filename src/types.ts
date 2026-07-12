@@ -79,6 +79,27 @@ export interface Booking {
   pricePaid: number;
 }
 
+export interface Payment {
+  paymentId: string;
+  bookingId: string;
+  patientName: string;
+  patientPhone: string;
+  patientEmail: string;
+  serviceName: string;
+  serviceCategory: string;
+  packageName: string;
+  amount: number;
+  paymentMethod: string;
+  paymentStatus: 'Pending' | 'Paid' | 'Failed' | 'Verified';
+  transactionId: string;
+  paymentScreenshotURL: string;
+  createdAt: string;
+  updatedAt: string;
+  verifiedBy?: string;
+  verificationStatus: 'Pending' | 'Approved' | 'Rejected';
+  notes?: string;
+}
+
 export interface Testimonial {
   id: string;
   name: string;

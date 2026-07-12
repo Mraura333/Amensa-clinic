@@ -22,6 +22,7 @@ import FAQsSection from './components/FAQsSection';
 import ContactForm from './components/ContactForm';
 import Footer from './components/Footer';
 import PatientPortal from './components/PatientPortal';
+import AdminPanel from './components/AdminPanel';
 import DedicatedPackagesPage from './components/DedicatedPackagesPage';
 import EstimateCartModal, { CartItem } from './components/EstimateCartModal';
 import { Booking, HealthPackage, Test, RadiologyService, LocationCard, Testimonial, FAQItem } from './types';
@@ -45,11 +46,13 @@ export default function App() {
     id: string;
     name: string;
     price: number;
+    autoPay?: boolean;
   } | null>(null);
 
   // Patient Portal state sync
   const [isPatientPortalOpen, setIsPatientPortalOpen] = useState(false);
   const [patientSessionName, setPatientSessionName] = useState<string>('');
+  const [isAdminOpen, setIsAdminOpen] = useState(false);
 
   // Estimate Cart State
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
@@ -281,6 +284,7 @@ export default function App() {
     id: string;
     name: string;
     price: number;
+    autoPay?: boolean;
   }) => {
     if (item) {
       setPreselectedItem(item);
@@ -389,7 +393,13 @@ export default function App() {
         <ContactForm preselectedItem={preselectedItem} onClearPreselected={clearPreselected} />
 
         {/* Large premium footer */}
-        <Footer />
+        <Footer onAdminClick={() => setIsAdminOpen(true)} />
+
+        {/* Clinical Admin Dashboard overlay */}
+        <AdminPanel
+          isOpen={isAdminOpen}
+          onClose={() => setIsAdminOpen(false)}
+        />
 
         {/* Patient Portal Workspace Overlay */}
         <PatientPortal

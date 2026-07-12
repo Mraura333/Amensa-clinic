@@ -124,6 +124,7 @@ interface DatabaseSchema {
   appointments: Appointment[];
   notifications: Notification[];
   reports: Report[];
+  payments?: any[];
   passwordResetTokens: { [token: string]: { email: string; expires: number } };
   githubConfig?: GitHubConfig;
   adminPasswordHash?: string;
@@ -325,6 +326,20 @@ export async function syncToFirestore(db: DatabaseSchema) {
       }
     }
 
+    // Sync Payments
+    const currentPayments = db.payments || [];
+    for (const pay of currentPayments) {
+      await adminDb.collection('payments').doc(pay.paymentId).set(pay);
+    }
+    const localPaymentIds = new Set(currentPayments.map(p => p.paymentId));
+    const firestorePayments = await adminDb.collection('payments').get();
+    for (const doc of firestorePayments.docs) {
+      if (!localPaymentIds.has(doc.id)) {
+        await doc.ref.delete();
+        console.log(`Deleted orphaned payment document ${doc.id} from Firestore`);
+      }
+    }
+
     // 5. Sync Scheduling Config
     if (db.schedulingConfig) {
       await adminDb.collection('cms').doc('schedulingConfig').set(db.schedulingConfig);
@@ -473,6 +488,22 @@ export async function initializeAndSyncFirestore() {
       console.log(`Firestore reports collection is empty. Seeding with ${localDB.reports.length} local reports...`);
       for (const r of localDB.reports) {
         await adminDb.collection('reports').doc(r.id).set(r);
+      }
+    }
+
+    // Sync Payments
+    const paymentsSnapshot = await adminDb.collection('payments').get();
+    if (!paymentsSnapshot.empty) {
+      const dbPayments: any[] = [];
+      paymentsSnapshot.forEach(doc => {
+        dbPayments.push(doc.data());
+      });
+      localDB.payments = dbPayments;
+      console.log(`Loaded ${dbPayments.length} payments from Firestore`);
+    } else if (localDB.payments && localDB.payments.length > 0) {
+      console.log(`Firestore payments collection is empty. Seeding with ${localDB.payments.length} local payments...`);
+      for (const p of localDB.payments) {
+        await adminDb.collection('payments').doc(p.paymentId).set(p);
       }
     }
 

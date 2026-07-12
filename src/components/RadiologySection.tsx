@@ -12,7 +12,7 @@ import { getWhatsAppBookingUrl } from '../utils/whatsapp';
 import PrescriptionUploadSection from './PrescriptionUploadSection';
 
 interface RadiologySectionProps {
-  onBookRadiology: (radiology: { type: 'Radiology'; id: string; name: string; price: number }) => void;
+  onBookRadiology: (radiology: { type: 'Radiology'; id: string; name: string; price: number; autoPay?: boolean }) => void;
   onAddToEstimate?: (item: { type: 'Package' | 'RoutineTest' | 'Radiology'; id: string; name: string; price: number }) => void;
   services?: RadiologyService[];
 }
@@ -126,20 +126,27 @@ export default function RadiologySection({ onBookRadiology, onAddToEstimate, ser
             </div>
 
             {/* CTA Buttons Row */}
-            <div className="mt-5 pt-4 border-t border-slate-100 flex items-center gap-2">
+            <div className="mt-5 pt-4 border-t border-slate-100 grid grid-cols-12 gap-1.5">
               <button
                 onClick={() => onBookRadiology({ type: 'Radiology', id: 'rad-sonography', name: 'Sonography (USG)', price: 2200 })}
-                className="flex-1 py-2 px-3 bg-[#0066CC] hover:bg-[#0052CC] active:scale-95 text-white font-bold text-[10px] uppercase tracking-wider rounded-lg transition-all text-center cursor-pointer flex items-center justify-center gap-1"
+                className="col-span-5 py-2 px-1 bg-[#0066CC] hover:bg-[#0052CC] active:scale-95 text-white font-bold text-[10px] uppercase tracking-wider rounded-lg transition-all text-center cursor-pointer flex items-center justify-center"
                 style={{ minHeight: '38px' }}
               >
-                <span>Book Now</span>
+                <span>Book</span>
+              </button>
+              <button
+                onClick={() => onBookRadiology({ type: 'Radiology', id: 'rad-sonography', name: 'Sonography (USG)', price: 2200, autoPay: true })}
+                className="col-span-4 py-2 px-1 bg-gradient-to-r from-[#00A884] to-[#008f6f] hover:from-[#008f6f] hover:to-[#007a5f] active:scale-95 text-white font-bold text-[10px] uppercase tracking-wider rounded-lg transition-all text-center cursor-pointer flex items-center justify-center"
+                style={{ minHeight: '38px' }}
+              >
+                <span>Pay</span>
               </button>
               <button
                 onClick={() => onAddToEstimate && onAddToEstimate({ type: 'Radiology', id: 'rad-sonography', name: 'Sonography (USG)', price: 2200 })}
-                className="py-2 px-3 bg-slate-100 hover:bg-[#0066CC]/10 text-slate-700 hover:text-[#0066CC] border border-slate-200 hover:border-[#0066CC]/30 font-bold text-[10px] uppercase tracking-wider rounded-lg transition-all text-center cursor-pointer shrink-0"
+                className="col-span-3 py-2 px-1 bg-slate-100 hover:bg-[#0066CC]/10 text-slate-700 hover:text-[#0066CC] border border-slate-200 hover:border-[#0066CC]/30 font-bold text-[10px] uppercase tracking-wider rounded-lg transition-all text-center cursor-pointer flex items-center justify-center"
                 style={{ minHeight: '38px' }}
               >
-                <span>+ Cart</span>
+                <span>+Cart</span>
               </button>
             </div>
 
@@ -176,20 +183,27 @@ export default function RadiologySection({ onBookRadiology, onAddToEstimate, ser
             </div>
 
             {/* CTA Buttons Row */}
-            <div className="mt-5 pt-4 border-t border-slate-100 flex items-center gap-2">
+            <div className="mt-5 pt-4 border-t border-slate-100 grid grid-cols-12 gap-1.5">
               <button
                 onClick={() => onBookRadiology({ type: 'Radiology', id: 'rad-xray', name: 'Digital X-Ray', price: 500 })}
-                className="flex-1 py-2 px-3 bg-[#0066CC] hover:bg-[#0052CC] active:scale-95 text-white font-bold text-[10px] uppercase tracking-wider rounded-lg transition-all text-center cursor-pointer flex items-center justify-center gap-1"
+                className="col-span-5 py-2 px-1 bg-[#0066CC] hover:bg-[#0052CC] active:scale-95 text-white font-bold text-[10px] uppercase tracking-wider rounded-lg transition-all text-center cursor-pointer flex items-center justify-center"
                 style={{ minHeight: '38px' }}
               >
-                <span>Book Now</span>
+                <span>Book</span>
+              </button>
+              <button
+                onClick={() => onBookRadiology({ type: 'Radiology', id: 'rad-xray', name: 'Digital X-Ray', price: 500, autoPay: true })}
+                className="col-span-4 py-2 px-1 bg-gradient-to-r from-[#00A884] to-[#008f6f] hover:from-[#008f6f] hover:to-[#007a5f] active:scale-95 text-white font-bold text-[10px] uppercase tracking-wider rounded-lg transition-all text-center cursor-pointer flex items-center justify-center"
+                style={{ minHeight: '38px' }}
+              >
+                <span>Pay</span>
               </button>
               <button
                 onClick={() => onAddToEstimate && onAddToEstimate({ type: 'Radiology', id: 'rad-xray', name: 'Digital X-Ray', price: 500 })}
-                className="py-2 px-3 bg-slate-100 hover:bg-[#0066CC]/10 text-slate-700 hover:text-[#0066CC] border border-slate-200 hover:border-[#0066CC]/30 font-bold text-[10px] uppercase tracking-wider rounded-lg transition-all text-center cursor-pointer shrink-0"
+                className="col-span-3 py-2 px-1 bg-slate-100 hover:bg-[#0066CC]/10 text-slate-700 hover:text-[#0066CC] border border-slate-200 hover:border-[#0066CC]/30 font-bold text-[10px] uppercase tracking-wider rounded-lg transition-all text-center cursor-pointer flex items-center justify-center"
                 style={{ minHeight: '38px' }}
               >
-                <span>+ Cart</span>
+                <span>+Cart</span>
               </button>
             </div>
 
@@ -223,20 +237,27 @@ export default function RadiologySection({ onBookRadiology, onAddToEstimate, ser
             </div>
 
             {/* CTA Buttons Row */}
-            <div className="mt-5 pt-4 border-t border-slate-100 flex items-center gap-2">
+            <div className="mt-5 pt-4 border-t border-slate-100 grid grid-cols-12 gap-1.5">
               <button
                 onClick={() => onBookRadiology({ type: 'Radiology', id: 'rad-2decho', name: '2D Echo (Cardiology)', price: 2000 })}
-                className="flex-1 py-2 px-3 bg-[#0066CC] hover:bg-[#0052CC] active:scale-95 text-white font-bold text-[10px] uppercase tracking-wider rounded-lg transition-all text-center cursor-pointer flex items-center justify-center gap-1"
+                className="col-span-5 py-2 px-1 bg-[#0066CC] hover:bg-[#0052CC] active:scale-95 text-white font-bold text-[10px] uppercase tracking-wider rounded-lg transition-all text-center cursor-pointer flex items-center justify-center"
                 style={{ minHeight: '38px' }}
               >
-                <span>Book Now</span>
+                <span>Book</span>
+              </button>
+              <button
+                onClick={() => onBookRadiology({ type: 'Radiology', id: 'rad-2decho', name: '2D Echo (Cardiology)', price: 2000, autoPay: true })}
+                className="col-span-4 py-2 px-1 bg-gradient-to-r from-[#00A884] to-[#008f6f] hover:from-[#008f6f] hover:to-[#007a5f] active:scale-95 text-white font-bold text-[10px] uppercase tracking-wider rounded-lg transition-all text-center cursor-pointer flex items-center justify-center"
+                style={{ minHeight: '38px' }}
+              >
+                <span>Pay</span>
               </button>
               <button
                 onClick={() => onAddToEstimate && onAddToEstimate({ type: 'Radiology', id: 'rad-2decho', name: '2D Echo (Cardiology)', price: 2000 })}
-                className="py-2 px-3 bg-slate-100 hover:bg-[#0066CC]/10 text-slate-700 hover:text-[#0066CC] border border-slate-200 hover:border-[#0066CC]/30 font-bold text-[10px] uppercase tracking-wider rounded-lg transition-all text-center cursor-pointer shrink-0"
+                className="col-span-3 py-2 px-1 bg-slate-100 hover:bg-[#0066CC]/10 text-slate-700 hover:text-[#0066CC] border border-slate-200 hover:border-[#0066CC]/30 font-bold text-[10px] uppercase tracking-wider rounded-lg transition-all text-center cursor-pointer flex items-center justify-center"
                 style={{ minHeight: '38px' }}
               >
-                <span>+ Cart</span>
+                <span>+Cart</span>
               </button>
             </div>
 
@@ -315,15 +336,15 @@ export default function RadiologySection({ onBookRadiology, onAddToEstimate, ser
                 </div>
 
                 {/* CTA Buttons Row */}
-                <div className="flex items-center gap-2.5">
+                <div className="grid grid-cols-12 gap-2 w-full">
                   {/* WhatsApp Enquiry Button */}
                   <a
                     href={getWhatsAppUrl(service)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center justify-center w-11 h-11 rounded-[14px] bg-[#EAFBEF] hover:bg-emerald-500 text-emerald-600 hover:text-white transition-all duration-300 shadow-sm hover:shadow-md cursor-pointer shrink-0"
+                    className="col-span-2 inline-flex items-center justify-center h-11 rounded-[14px] bg-[#EAFBEF] hover:bg-emerald-500 text-emerald-600 hover:text-white transition-all duration-300 shadow-sm hover:shadow-md cursor-pointer"
                     title="Inquire via WhatsApp"
-                    style={{ minHeight: '44px', minWidth: '44px' }}
+                    style={{ minHeight: '44px' }}
                   >
                     <MessageCircle className="w-5 h-5" />
                   </a>
@@ -331,21 +352,29 @@ export default function RadiologySection({ onBookRadiology, onAddToEstimate, ser
                   {/* Book Imaging Slot */}
                   <button
                     onClick={() => onBookRadiology({ type: 'Radiology', id: service.id, name: service.name, price: service.bmcPrice })}
-                    className="px-4 py-3.5 bg-[#0066CC] hover:bg-[#0052CC] active:scale-95 text-white font-bold text-xs rounded-[14px] shadow-lg shadow-blue-200 hover:shadow-xl transition-all duration-300 text-center cursor-pointer flex items-center justify-center gap-1.5 flex-1"
+                    className="col-span-4 h-11 bg-[#0066CC] hover:bg-[#0052CC] active:scale-95 text-white font-bold text-xs rounded-[14px] shadow-lg shadow-blue-200 hover:shadow-xl transition-all duration-300 text-center cursor-pointer flex items-center justify-center gap-1"
                     style={{ minHeight: '44px' }}
                   >
-                    <span>Book Slot</span>
-                    <ChevronRight className="w-4 h-4" />
+                    <span>Book</span>
+                  </button>
+
+                  {/* Pay Slot */}
+                  <button
+                    onClick={() => onBookRadiology({ type: 'Radiology', id: service.id, name: service.name, price: service.bmcPrice, autoPay: true })}
+                    className="col-span-3 h-11 bg-gradient-to-r from-[#00A884] to-[#008f6f] hover:from-[#008f6f] hover:to-[#007a5f] active:scale-95 text-white font-bold text-xs rounded-[14px] shadow-lg shadow-emerald-200 hover:shadow-xl transition-all duration-300 text-center cursor-pointer flex items-center justify-center"
+                    style={{ minHeight: '44px' }}
+                  >
+                    <span>Pay</span>
                   </button>
 
                   {/* Add to Estimate Button */}
                   <button
                     onClick={() => onAddToEstimate && onAddToEstimate({ type: 'Radiology', id: service.id, name: service.name, price: service.bmcPrice })}
-                    className="px-4 py-3.5 bg-slate-100 hover:bg-[#0066CC]/10 text-slate-700 hover:text-[#0066CC] border border-slate-200 hover:border-[#0066CC]/30 font-bold text-xs rounded-[14px] transition-all duration-300 text-center cursor-pointer flex items-center justify-center gap-1"
+                    className="col-span-3 h-11 bg-slate-100 hover:bg-[#0066CC]/10 text-slate-700 hover:text-[#0066CC] border border-slate-200 hover:border-[#0066CC]/30 font-bold text-xs rounded-[14px] transition-all duration-300 text-center cursor-pointer flex items-center justify-center"
                     style={{ minHeight: '44px' }}
                     title="Add to Cart"
                   >
-                    <span>+ Cart</span>
+                    <span>+Cart</span>
                   </button>
                 </div>
               </div>

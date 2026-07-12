@@ -31,9 +31,11 @@ import {
   MapPin,
   HelpCircle,
   Activity,
-  Grid
+  Grid,
+  CreditCard,
+  ExternalLink
 } from 'lucide-react';
-import { Booking, HealthPackage, Test, RadiologyService, LocationCard } from '../types';
+import { Booking, HealthPackage, Test, RadiologyService, LocationCard, Payment } from '../types';
 import { getStoredPackages, getStoredTests, getStoredRadiology, getStoredLocations } from '../utils/storageHelper';
 import { db, collection, query, where, onSnapshot } from '../lib/firebase';
 
@@ -58,7 +60,7 @@ interface PatientProfile {
 export default function PatientPortal({ isOpen, onClose, onBookingAdded }: PatientPortalProps) {
   // Auth Modes: 'login' | 'signup' | 'forgot' | 'reset' | 'dashboard'
   const [authMode, setAuthMode] = useState<'login' | 'signup' | 'forgot' | 'reset' | 'dashboard'>('login');
-  const [activeTab, setActiveTab] = useState<'overview' | 'book' | 'history' | 'reports' | 'profile'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'book' | 'history' | 'payments' | 'reports' | 'profile'>('overview');
   
   // Loading & Error States
   const [isLoading, setIsLoading] = useState(false);
@@ -100,11 +102,15 @@ export default function PatientPortal({ isOpen, onClose, onBookingAdded }: Patie
   const [appointments, setAppointments] = useState<any[]>([]);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [reports, setReports] = useState<any[]>([]);
+  const [patientPayments, setPatientPayments] = useState<Payment[]>([]);
 
   // Filtering & Search
   const [historySearch, setHistorySearch] = useState('');
   const [historyStatusFilter, setHistoryStatusFilter] = useState('All');
   const [historyDateFilter, setHistoryDateFilter] = useState('');
+
+  const [paymentSearch, setPaymentSearch] = useState('');
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState('All');
 
   // Profile Edit Form State
   const [editName, setEditName] = useState('');
@@ -177,6 +183,7 @@ export default function PatientPortal({ isOpen, onClose, onBookingAdded }: Patie
     let unsubscribeAppts: (() => void) | null = null;
     let unsubscribeNotifs: (() => void) | null = null;
     let unsubscribeReports: (() => void) | null = null;
+    let unsubscribePayments: (() => void) | null = null;
 
     try {
       // 1. Listen to patient's appointments in real-time
@@ -231,6 +238,25 @@ export default function PatientPortal({ isOpen, onClose, onBookingAdded }: Patie
         console.warn('Patient reports listener error, bypassing:', err);
       });
 
+      // 4. Listen to patient's payments in real-time (by phone number)
+      if (patient.mobile) {
+        const paymentsQuery = query(
+          collection(db, 'payments'),
+          where('patientPhone', '==', patient.mobile)
+        );
+        unsubscribePayments = onSnapshot(paymentsQuery, (snapshot) => {
+          const list: Payment[] = [];
+          snapshot.forEach((doc) => {
+            list.push(doc.data() as Payment);
+          });
+          list.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+          setPatientPayments(list);
+          console.log(`[Patient] Synced ${list.length} payments in real-time`);
+        }, (err) => {
+          console.warn('Patient payments listener error, bypassing:', err);
+        });
+      }
+
     } catch (e) {
       console.warn('Patient real-time Firestore sync error:', e);
     }
@@ -239,6 +265,7 @@ export default function PatientPortal({ isOpen, onClose, onBookingAdded }: Patie
       if (unsubscribeAppts) unsubscribeAppts();
       if (unsubscribeNotifs) unsubscribeNotifs();
       if (unsubscribeReports) unsubscribeReports();
+      if (unsubscribePayments) unsubscribePayments();
     };
   }, [isOpen, patient?.id]);
 
@@ -574,6 +601,20 @@ export default function PatientPortal({ isOpen, onClose, onBookingAdded }: Patie
     const matchesDate = !historyDateFilter || appt.preferredDate === historyDateFilter;
 
     return matchesSearch && matchesStatus && matchesDate;
+  });
+
+  // Filters for Payments & Receipts
+  const filteredPayments = patientPayments.filter(pay => {
+    const pName = pay.packageName || pay.serviceName || '';
+    const matchesSearch = pName.toLowerCase().includes(paymentSearch.toLowerCase()) || 
+                          pay.paymentId.toLowerCase().includes(paymentSearch.toLowerCase()) ||
+                          pay.transactionId.toLowerCase().includes(paymentSearch.toLowerCase());
+    
+    const matchesStatus = paymentStatusFilter === 'All' || 
+                          pay.paymentStatus === paymentStatusFilter || 
+                          pay.verificationStatus === paymentStatusFilter;
+
+    return matchesSearch && matchesStatus;
   });
 
   if (!isOpen) return null;
@@ -1027,6 +1068,7 @@ export default function PatientPortal({ isOpen, onClose, onBookingAdded }: Patie
                   { id: 'overview' as const, label: 'Bento Overview', icon: Grid },
                   { id: 'book' as const, label: 'Schedule Pathology', icon: Plus },
                   { id: 'history' as const, label: 'Appointment Records', icon: ClipboardList },
+                  { id: 'payments' as const, label: 'Payments & Receipts', icon: CreditCard },
                   { id: 'reports' as const, label: 'Lab Reports Cabinet', icon: FileText },
                   { id: 'profile' as const, label: 'My Profile settings', icon: Settings }
                 ].map((tab) => {
@@ -1334,6 +1376,141 @@ export default function PatientPortal({ isOpen, onClose, onBookingAdded }: Patie
                       <div className="text-center py-16 text-slate-400">
                         <ClipboardList className="w-12 h-12 text-slate-200 mx-auto mb-3" />
                         <p className="text-xs font-bold text-slate-500">No matching diagnostic records located.</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'payments' && (
+                /* Payments & Receipts Tab */
+                <div className="bg-white border border-[#E8EEF5] rounded-2xl p-5 sm:p-6 shadow-sm space-y-6">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div>
+                      <h3 className="font-black text-slate-800 text-base">Payments & Receipts Ledger</h3>
+                      <p className="text-slate-400 text-xs mt-0.5 font-semibold">Verify digital UPI submissions, check verification states, and view transactional logs.</p>
+                    </div>
+                  </div>
+
+                  {/* Search and Filters */}
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <div className="relative flex-1">
+                      <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                      <input 
+                        type="text"
+                        placeholder="Search by ID, transaction ref, package..."
+                        value={paymentSearch}
+                        onChange={(e) => setPaymentSearch(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2.5 bg-[#FAFBFD] border border-[#E8EEF5] rounded-xl text-xs font-bold text-slate-700 placeholder-slate-400 focus:outline-none focus:border-[#0066CC] focus:bg-white transition-all"
+                      />
+                    </div>
+
+                    <div className="flex gap-2 shrink-0">
+                      <div className="relative">
+                        <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                        <select
+                          value={paymentStatusFilter}
+                          onChange={(e) => setPaymentStatusFilter(e.target.value)}
+                          className="pl-9 pr-8 py-2.5 bg-[#FAFBFD] border border-[#E8EEF5] rounded-xl text-xs font-black text-slate-600 appearance-none focus:outline-none focus:border-[#0066CC] focus:bg-white cursor-pointer transition-all text-ellipsis overflow-hidden"
+                        >
+                          <option value="All">All Statuses</option>
+                          <option value="Pending">Verification Pending</option>
+                          <option value="Approved">Verified / Approved</option>
+                          <option value="Rejected">Rejected</option>
+                          <option value="Paid">Paid</option>
+                          <option value="Failed">Failed</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Payments list */}
+                  <div className="space-y-4">
+                    {filteredPayments.length > 0 ? (
+                      filteredPayments.map((pay) => (
+                        <div 
+                          key={pay.paymentId} 
+                          className="p-5 border border-[#E8EEF5] bg-[#FAFBFD]/30 rounded-xl hover:border-blue-100 transition-all flex flex-col md:flex-row justify-between items-start gap-4"
+                        >
+                          <div className="space-y-2.5 flex-1 min-w-0 w-full">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-mono font-black text-[10px] text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-100 uppercase">
+                                PAYMENT ID: {pay.paymentId}
+                              </span>
+                              <span className="text-[11px] text-slate-400 font-bold">
+                                {pay.createdAt ? new Date(pay.createdAt).toLocaleString() : 'N/A'}
+                              </span>
+                            </div>
+
+                            <div>
+                              <h4 className="font-black text-slate-800 text-sm truncate">
+                                {pay.packageName || pay.serviceName || 'Diagnostic pathology profile'}
+                              </h4>
+                              {pay.bookingId && (
+                                <p className="text-[11px] text-slate-400 font-semibold mt-0.5">
+                                  Linked Booking ID: <span className="font-mono text-slate-600 font-bold">{pay.bookingId}</span>
+                                </p>
+                              )}
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-y-2 gap-x-4 border-t border-slate-100/70 pt-2.5 mt-1">
+                              <div className="text-[11px]">
+                                <span className="text-slate-400 font-bold">Method:</span>{' '}
+                                <span className="text-slate-700 font-extrabold capitalize">{pay.paymentMethod}</span>
+                              </div>
+                              <div className="text-[11px]">
+                                <span className="text-slate-400 font-bold">Transaction Ref:</span>{' '}
+                                <span className="font-mono text-slate-700 font-extrabold break-all">{pay.transactionId || 'Manual verification'}</span>
+                              </div>
+                              {pay.serviceCategory && (
+                                <div className="text-[11px]">
+                                  <span className="text-slate-400 font-bold">Category:</span>{' '}
+                                  <span className="text-slate-700 font-extrabold capitalize">{pay.serviceCategory}</span>
+                                </div>
+                              )}
+                            </div>
+
+                            {pay.notes && (
+                              <div className="bg-slate-50 border border-slate-100 p-2.5 rounded-lg text-slate-600 text-[11px] font-semibold">
+                                <span className="font-bold text-slate-800">Note:</span> {pay.notes}
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="flex flex-row md:flex-col items-end justify-between md:justify-start gap-4 shrink-0 w-full md:w-auto border-t md:border-t-0 border-slate-100/70 pt-3 md:pt-0">
+                            <div className="text-right flex flex-col items-start md:items-end gap-1">
+                              <span className="font-mono font-black text-emerald-600 text-base">₹{pay.amount}</span>
+                              
+                              <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border ${
+                                pay.verificationStatus === 'Approved' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
+                                pay.verificationStatus === 'Rejected' ? 'bg-rose-50 text-rose-700 border-rose-100' :
+                                'bg-amber-50 text-amber-700 border-amber-100'
+                              }`}>
+                                {pay.verificationStatus === 'Approved' ? 'Verified / Approved' :
+                                 pay.verificationStatus === 'Rejected' ? 'Rejected' :
+                                 'Verification Pending'}
+                              </span>
+                            </div>
+
+                            {pay.paymentScreenshotURL && (
+                              <a 
+                                href={pay.paymentScreenshotURL}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="px-3 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-600 hover:text-slate-800 text-[10px] font-black rounded-lg border border-slate-200 cursor-pointer flex items-center justify-center gap-1.5 transition-all"
+                              >
+                                <ExternalLink className="w-3.5 h-3.5" />
+                                <span>Receipt Screenshot</span>
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-center py-16 text-slate-400">
+                        <CreditCard className="w-12 h-12 text-slate-200 mx-auto mb-3" />
+                        <p className="text-xs font-bold text-slate-500">No payment transaction records located.</p>
+                        <p className="text-[11px] text-slate-400 mt-1">Submit bookings with UPI checkout screenshots on WhatsApp or online to view invoice histories.</p>
                       </div>
                     )}
                   </div>

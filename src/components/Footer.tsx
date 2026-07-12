@@ -7,9 +7,11 @@ import React from 'react';
 import { ShieldCheck, Heart, MapPin, Phone, Mail, Clock, Facebook, Twitter, Instagram, Award } from 'lucide-react';
 import Logo from './Logo';
 
-interface FooterProps {}
+interface FooterProps {
+  onAdminClick?: () => void;
+}
 
-export default function Footer({}: FooterProps = {}) {
+export default function Footer({ onAdminClick }: FooterProps = {}) {
   const quickLinks = [
     { name: 'Home', href: '#home' },
     { name: 'Why Choose Us', href: '#why-choose' },
@@ -123,7 +125,20 @@ export default function Footer({}: FooterProps = {}) {
           {/* Copyright description */}
           <div className="text-center sm:text-left text-[11px] text-slate-500 font-semibold space-y-1">
             <p>© {new Date().getFullYear()} Amensa Diagnostics. All rights reserved.</p>
-            <p>Designed for Amensa Healthcare Group. Medical Registration Certificate No. MH-421-KD0392.</p>
+            <p className="flex flex-wrap items-center justify-center sm:justify-start gap-1.5">
+              <span>Designed for Amensa Healthcare Group. Medical Registration Certificate No. MH-421-KD0392.</span>
+              {onAdminClick && (
+                <>
+                  <span className="text-slate-700">•</span>
+                  <button 
+                    onClick={onAdminClick}
+                    className="text-slate-400 hover:text-[#0066CC] transition-colors cursor-pointer underline hover:no-underline font-extrabold"
+                  >
+                    Clinical Admin Portal
+                  </button>
+                </>
+              )}
+            </p>
           </div>
 
           {/* Social media icons */}
