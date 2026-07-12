@@ -6,12 +6,32 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import QRCode from 'qrcode';
 import { motion, AnimatePresence } from 'motion/react';
-import { Phone, Calendar, MapPin, ShieldCheck, Search, ChevronDown, Sparkles, MessageSquare, CreditCard, QrCode, Copy, Check, Upload, CheckCircle, X, RefreshCw } from 'lucide-react';
+import { Phone, Calendar, MapPin, ShieldCheck, Search, ChevronDown, Sparkles, MessageSquare, CreditCard, QrCode, Copy, Check, Upload, CheckCircle, X, RefreshCw, Landmark, Wallet } from 'lucide-react';
 import { healthPackages, routineTests, radiologyServices } from '../data';
 import { getWhatsAppBookingUrl, getWhatsAppPrescriptionUrl } from '../utils/whatsapp';
 import { bookingService } from '../services/bookingService';
 import { paymentService } from '../services/paymentService';
 import { storageService } from '../services/storageService';
+
+// Utility to load Cashfree SDK script dynamically
+const loadCashfreeScript = (): Promise<any> => {
+  return new Promise((resolve) => {
+    if ((window as any).Cashfree) {
+      resolve((window as any).Cashfree);
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = "https://sdk.cashfree.com/js/v3/cashfree.js";
+    script.async = true;
+    script.onload = () => {
+      resolve((window as any).Cashfree);
+    };
+    script.onerror = () => {
+      resolve(null);
+    };
+    document.body.appendChild(script);
+  });
+};
 
 interface ContactFormProps {
   preselectedItem?: { type: 'Package' | 'RoutineTest' | 'Radiology'; id: string; name: string; price: number; autoPay?: boolean } | null;
@@ -34,6 +54,7 @@ export default function ContactForm({ preselectedItem, onClearPreselected }: Con
       setItemSearchQuery('');
 
       if (preselectedItem.autoPay) {
+        setPaymentMethod('UPI');
         setTimeout(() => {
           handlePayNowUPI();
         }, 300);
@@ -84,6 +105,15 @@ export default function ContactForm({ preselectedItem, onClearPreselected }: Con
   const [showFormPrescSuccess, setShowFormPrescSuccess] = useState(false);
 
   // Dynamic UPI payment states
+  const [paymentMethod, setPaymentMethod] = useState<'WhatsApp' | 'UPI' | 'Online'>('WhatsApp');
+  const [paymentStatus, setPaymentStatus] = useState<'idle' | 'processing' | 'success' | 'failed'>('idle');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [createdOrderId, setCreatedOrderId] = useState<string | null>(null);
+  const [createdSessionId, setCreatedSessionId] = useState<string | null>(null);
+  const [showSimulator, setShowSimulator] = useState(false);
+  const [isCfSimulated, setIsCfSimulated] = useState(false);
+  const [createdBookings, setCreatedBookings] = useState<any[]>([]);
+
   const [isUPIModalOpen, setIsUPIModalOpen] = useState(false);
   const [paymentScreenshot, setPaymentScreenshot] = useState<File | null>(null);
   const [paymentScreenshotUrl, setPaymentScreenshotUrl] = useState<string | null>(null);
@@ -199,6 +229,109 @@ export default function ContactForm({ preselectedItem, onClearPreselected }: Con
     setShowValidationErrors(false);
     setIsUPIModalOpen(true);
   }
+
+  const handleOnlinePayment = async () => {
+    const isAddressValid = collectionType === 'Walk-in' || address.trim() !== '';
+
+    if (!patientName.trim() || !patientPhone.trim() || !patientAge.trim() || !isAddressValid) {
+      setShowValidationErrors(true);
+      return;
+    }
+    setShowValidationErrors(false);
+    setPaymentStatus('processing');
+    setErrorMessage(null);
+
+    // Build the clinical bookingDetails object
+    const bookingDetails = {
+      patientId: "",
+      patientName,
+      patientAge: Number(patientAge),
+      patientGender,
+      mobile: patientPhone,
+      email: "",
+      bookingType: collectionType === 'Home Collection' ? 'HomeCollection' : 'CenterVisit',
+      preferredDate: preferredDate || new Date().toISOString().split('T')[0],
+      preferredTimeSlot: preferredTime,
+      address: collectionType === 'Home Collection' ? address : undefined,
+      locationId: collectionType === 'Walk-in' ? preferredBranch : undefined,
+      notes: additionalNotes,
+      items: [{ id: selectedItemId, name: activeSelectedItem.name, price: activeSelectedItem.price, type: selectedItemType }],
+      visitCharge: 0
+    };
+
+    try {
+      const response = await fetch('/api/cashfree/create-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount: activeSelectedItem.price,
+          patientName,
+          patientPhone,
+          patientEmail: "",
+          bookingDetails
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create Cashfree checkout order.');
+      }
+
+      setCreatedOrderId(data.orderId);
+      setCreatedSessionId(data.paymentSessionId);
+      setIsCfSimulated(!!data.isSimulated);
+
+      if (data.isSimulated) {
+        setShowSimulator(true);
+      } else {
+        const CashfreeSDK = await loadCashfreeScript();
+        if (!CashfreeSDK) {
+          throw new Error('Cashfree SDK failed to initialize. Try again or select UPI/WhatsApp.');
+        }
+        const cashfree = CashfreeSDK({ mode: "sandbox" });
+        await cashfree.checkout({
+          paymentSessionId: data.paymentSessionId,
+          redirectTarget: "_self"
+        });
+      }
+    } catch (err: any) {
+      console.error('Online Payment Error:', err);
+      setPaymentStatus('failed');
+      setErrorMessage(err.message || 'An unexpected error occurred during online checkout.');
+    }
+  };
+
+  const handleSimulatedPaymentSuccess = async () => {
+    setShowSimulator(false);
+    setPaymentStatus('processing');
+    
+    try {
+      const res = await fetch('/api/cashfree/verify-payment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId: createdOrderId,
+          isSimulated: true
+        })
+      });
+
+      const result = await res.json();
+      if (res.ok && result.success) {
+        setPaymentStatus('success');
+        setCreatedBookings(result.bookings || []);
+        if (onClearPreselected) {
+          onClearPreselected();
+        }
+      } else {
+        setPaymentStatus('failed');
+        setErrorMessage(result.error || 'Verification of simulated order failed.');
+      }
+    } catch (err: any) {
+      setPaymentStatus('failed');
+      setErrorMessage('Verification network issue.');
+    }
+  };
 
   // Construct secure upi deep link and dynamic qr code server link
   const cleanPackageNameForNote = activeSelectedItem.name.replace(/[^a-zA-Z0-9]/g, '-');
@@ -640,6 +773,86 @@ export default function ContactForm({ preselectedItem, onClearPreselected }: Con
                       className="w-full px-4 py-3 bg-white border border-[#E8EEF5] focus:border-[#0066CC] rounded-xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none transition-all shadow-sm resize-none"
                     />
                   </div>
+
+                  {/* Choose Booking & Payment Method Option Selector */}
+                  <div className="md:col-span-2 border-t border-[#E8EEF5] pt-5">
+                    <label className="text-[11px] font-bold text-slate-500 uppercase block mb-2.5">
+                      Choose Booking & Payment Method *
+                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                      <button
+                        type="button"
+                        onClick={() => setPaymentMethod('WhatsApp')}
+                        className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer relative overflow-hidden flex items-center justify-between ${
+                          paymentMethod === 'WhatsApp'
+                            ? 'bg-emerald-50/40 border-[#00A884] text-emerald-950 shadow-sm'
+                            : 'bg-white border-[#E8EEF5] text-slate-600 hover:bg-slate-50/50'
+                        }`}
+                        id="form-payment-method-whatsapp-btn"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <span className="text-xl">💬</span>
+                          <div>
+                            <p className="text-xs font-black">Book on WhatsApp</p>
+                            <p className="text-[10px] text-slate-400 font-semibold">Pay during collection</p>
+                          </div>
+                        </div>
+                        {paymentMethod === 'WhatsApp' && (
+                          <div className="absolute top-0 right-0 bg-[#00A884] text-white text-[8px] font-black px-2 py-0.5 rounded-bl">
+                            ACTIVE
+                          </div>
+                        )}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setPaymentMethod('UPI')}
+                        className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer relative overflow-hidden flex items-center justify-between ${
+                          paymentMethod === 'UPI'
+                            ? 'bg-blue-50/40 border-[#0066CC] text-blue-950 shadow-sm'
+                            : 'bg-white border-[#E8EEF5] text-slate-600 hover:bg-slate-50/50'
+                        }`}
+                        id="form-payment-method-upi-btn"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <span className="text-xl">📱</span>
+                          <div>
+                            <p className="text-xs font-black">Instant UPI / QR</p>
+                            <p className="text-[10px] text-slate-400 font-semibold">Scan and pay now</p>
+                          </div>
+                        </div>
+                        {paymentMethod === 'UPI' && (
+                          <div className="absolute top-0 right-0 bg-[#0066CC] text-white text-[8px] font-black px-2 py-0.5 rounded-bl">
+                            ACTIVE
+                          </div>
+                        )}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setPaymentMethod('Online')}
+                        className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer relative overflow-hidden flex items-center justify-between ${
+                          paymentMethod === 'Online'
+                            ? 'bg-violet-50/40 border-violet-500 text-violet-950 shadow-sm'
+                            : 'bg-white border-[#E8EEF5] text-slate-600 hover:bg-slate-50/50'
+                        }`}
+                        id="form-payment-method-online-btn"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <span className="text-xl">💳</span>
+                          <div>
+                            <p className="text-xs font-black">Pay Online Securely</p>
+                            <p className="text-[10px] text-slate-400 font-semibold">Cards & Net Banking</p>
+                          </div>
+                        </div>
+                        {paymentMethod === 'Online' && (
+                          <div className="absolute top-0 right-0 bg-violet-500 text-white text-[8px] font-black px-2 py-0.5 rounded-bl">
+                            ACTIVE
+                          </div>
+                        )}
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -718,30 +931,89 @@ export default function ContactForm({ preselectedItem, onClearPreselected }: Con
                 </ul>
               </div>
 
+              {/* Payment status states */}
+              {paymentStatus === 'processing' && (
+                <div className="p-4 bg-blue-50 border border-blue-100 rounded-2xl flex items-center gap-3 text-blue-800 text-xs font-bold shadow-sm mt-3">
+                  <RefreshCw className="w-4.5 h-4.5 text-[#0066CC] animate-spin" />
+                  <span>Processing secure digital payment... Please wait.</span>
+                </div>
+              )}
+
+              {paymentStatus === 'success' && (
+                <div className="p-5 bg-emerald-50 border border-emerald-200 rounded-2xl space-y-3 shadow-sm mt-3 text-left">
+                  <div className="flex items-center gap-2.5 text-emerald-800 font-extrabold text-sm">
+                    <CheckCircle className="w-5 h-5 text-emerald-600" />
+                    <span>Payment Succeeded & Verified!</span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 leading-relaxed">
+                    Your appointment has been logged successfully and confirmed! Our lab coordinator is already processing your slot.
+                  </p>
+                  {createdBookings.length > 0 && (
+                    <div className="bg-white/80 p-3.5 rounded-xl border border-emerald-100 space-y-1">
+                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Patient Name</p>
+                      <p className="text-xs font-extrabold text-slate-800">{createdBookings[0].patientName}</p>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-2">Booking ID</p>
+                      <p className="text-xs font-mono font-black text-slate-800">{createdBookings[0].bookingId}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {paymentStatus === 'failed' && (
+                <div className="p-4 bg-rose-50 border border-rose-100 rounded-2xl flex items-start gap-3 text-rose-800 text-xs font-bold shadow-sm mt-3 text-left">
+                  <span className="text-lg">⚠️</span>
+                  <div>
+                    <p className="font-extrabold">Payment Attempt Failed</p>
+                    <p className="text-[10px] text-slate-500 font-medium mt-0.5">{errorMessage || 'The payment request was cancelled or declined.'}</p>
+                  </div>
+                </div>
+              )}
+
               {/* Submission Row */}
               <div className="pt-4 border-t border-[#E8EEF5] flex flex-col lg:flex-row items-center justify-between gap-4">
                 <p className="text-[10px] text-slate-400 leading-relaxed text-center lg:text-left max-w-xs">
-                  Our certified phlebotomists are ready for gold standard sterile home collections. Pay online instantly using secure UPI or route via WhatsApp.
+                  {paymentMethod === 'WhatsApp' 
+                    ? "Our certified phlebotomists are ready for gold standard sterile home collections. Pay during collection or route instantly via WhatsApp."
+                    : paymentMethod === 'UPI'
+                    ? "Instant secure UPI. Scan and verify from your screen. High success rates, zero gateway surcharges."
+                    : "Pay securely via credit card, net banking, or wallet. Secure 128-bit encryption processed instantly."}
                 </p>
                 <div className="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto">
-                  <button
-                    type="button"
-                    onClick={handlePayNowUPI}
-                    className="w-full sm:w-auto px-6 py-4 bg-[#0066CC] hover:bg-[#0052CC] active:scale-95 text-white font-extrabold text-sm rounded-xl shadow-lg shadow-blue-100 hover:shadow-xl transition-all cursor-pointer text-center whitespace-nowrap flex items-center justify-center gap-2"
-                    id="form-pay-now-upi-btn"
-                  >
-                    <CreditCard className="w-4.5 h-4.5" />
-                    <span>Pay Now (Instant UPI)</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleWhatsAppBooking}
-                    className="w-full sm:w-auto px-6 py-4 bg-[#00A884] hover:bg-[#008f6f] active:scale-95 text-white font-extrabold text-sm rounded-xl shadow-lg shadow-emerald-100 hover:shadow-xl transition-all cursor-pointer text-center whitespace-nowrap flex items-center justify-center gap-2"
-                    id="form-submit-booking-btn"
-                  >
-                    <MessageSquare className="w-4.5 h-4.5" />
-                    <span>Book Selected via WhatsApp</span>
-                  </button>
+                  {paymentMethod === 'UPI' && (
+                    <button
+                      type="button"
+                      onClick={handlePayNowUPI}
+                      className="w-full sm:w-auto px-7 py-4 bg-[#0066CC] hover:bg-[#0052CC] active:scale-95 text-white font-extrabold text-sm rounded-xl shadow-lg shadow-blue-100 hover:shadow-xl transition-all cursor-pointer text-center whitespace-nowrap flex items-center justify-center gap-2"
+                      id="form-pay-now-upi-btn"
+                    >
+                      <CreditCard className="w-4.5 h-4.5" />
+                      <span>Pay Now (Instant UPI)</span>
+                    </button>
+                  )}
+
+                  {paymentMethod === 'WhatsApp' && (
+                    <button
+                      type="button"
+                      onClick={handleWhatsAppBooking}
+                      className="w-full sm:w-auto px-7 py-4 bg-[#00A884] hover:bg-[#008f6f] active:scale-95 text-white font-extrabold text-sm rounded-xl shadow-lg shadow-emerald-100 hover:shadow-xl transition-all cursor-pointer text-center whitespace-nowrap flex items-center justify-center gap-2"
+                      id="form-submit-booking-btn"
+                    >
+                      <MessageSquare className="w-4.5 h-4.5" />
+                      <span>Book Selected via WhatsApp</span>
+                    </button>
+                  )}
+
+                  {paymentMethod === 'Online' && (
+                    <button
+                      type="button"
+                      onClick={handleOnlinePayment}
+                      className="w-full sm:w-auto px-7 py-4 bg-violet-600 hover:bg-violet-700 active:scale-95 text-white font-extrabold text-sm rounded-xl shadow-lg shadow-violet-100 hover:shadow-xl transition-all cursor-pointer text-center whitespace-nowrap flex items-center justify-center gap-2"
+                      id="form-pay-online-btn"
+                    >
+                      <CreditCard className="w-4.5 h-4.5" />
+                      <span>Pay Online Securely</span>
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -1084,6 +1356,156 @@ I have uploaded my payment screenshot for verification.`;
                     </button>
                   </div>
                 )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Cashfree Simulated Gateway Interactive Dialog Overlay */}
+      <AnimatePresence>
+        {showSimulator && (
+          <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 30 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 30 }}
+              className="bg-white rounded-[32px] border border-slate-100 shadow-2xl overflow-hidden max-w-md w-full flex flex-col max-h-[85vh] font-sans"
+            >
+              {/* Simulator Header */}
+              <div className="bg-[#1e293b] px-6 py-4 text-white flex justify-between items-center shrink-0">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded bg-[#4ade80] flex items-center justify-center text-slate-950 text-xs font-black">
+                    cf
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-black tracking-wide uppercase">Cashfree Checkout</h4>
+                    <p className="text-[9px] text-emerald-400 font-bold">Clinical Sandbox Simulation</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowSimulator(false);
+                    setPaymentStatus('failed');
+                    setErrorMessage('Payment cancelled by user.');
+                  }}
+                  className="text-slate-400 hover:text-white transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Pricing Ribbons */}
+              <div className="bg-slate-50 border-b border-slate-100 px-6 py-4 flex justify-between items-center text-xs shrink-0">
+                <div>
+                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">Paying To</span>
+                  <p className="font-extrabold text-slate-800">Amensa Diagnostics Clinic</p>
+                </div>
+                <div className="text-right">
+                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">Amount Due</span>
+                  <p className="font-mono font-black text-[#0066CC] text-base">₹{activeSelectedItem.price}</p>
+                </div>
+              </div>
+
+              {/* Simulator Body (Tabbed selector) */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-5 text-left">
+                <div className="p-3 bg-blue-50 border border-blue-100 text-blue-800 text-[10px] font-bold rounded-xl leading-normal">
+                  🛡️ This checkout is simulating Cashfree's PCI DSS compliant v3 JS SDK. You can choose any payment method below to complete booking instantly.
+                </div>
+
+                <div className="space-y-3">
+                  <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Select Payment Mode</span>
+                  <div className="grid grid-cols-2 gap-2">
+                    {/* UPI */}
+                    <div className="p-3.5 border border-slate-200 hover:border-[#0066CC] bg-slate-50/20 hover:bg-blue-50/10 rounded-xl cursor-pointer flex flex-col gap-2 items-center text-center transition-all">
+                      <QrCode className="w-6 h-6 text-indigo-500" />
+                      <span className="text-[10px] font-black text-slate-700">UPI / QR Scan</span>
+                    </div>
+
+                    {/* Cards */}
+                    <div className="p-3.5 border border-[#0066CC] bg-blue-50/30 rounded-xl cursor-pointer flex flex-col gap-2 items-center text-center transition-all">
+                      <CreditCard className="w-6 h-6 text-blue-500" />
+                      <span className="text-[10px] font-black text-[#0066CC]">Cards (Debit/Credit)</span>
+                    </div>
+
+                    {/* Net Banking */}
+                    <div className="p-3.5 border border-slate-200 hover:border-[#0066CC] bg-slate-50/20 hover:bg-blue-50/10 rounded-xl cursor-pointer flex flex-col gap-2 items-center text-center transition-all">
+                      <Landmark className="w-6 h-6 text-amber-500" />
+                      <span className="text-[10px] font-black text-slate-700">Net Banking</span>
+                    </div>
+
+                    {/* Wallets */}
+                    <div className="p-3.5 border border-slate-200 hover:border-[#0066CC] bg-slate-50/20 hover:bg-blue-50/10 rounded-xl cursor-pointer flex flex-col gap-2 items-center text-center transition-all">
+                      <Wallet className="w-6 h-6 text-emerald-500" />
+                      <span className="text-[10px] font-black text-slate-700">Mobile Wallets</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Interactive mock card section */}
+                <div className="border border-slate-150 rounded-2xl p-4 bg-slate-50/40 space-y-3 text-left">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Enter Mock Card Details</span>
+                    <div className="flex gap-1 text-[9px] font-black text-slate-400">
+                      <span>VISA</span>
+                      <span>MC</span>
+                      <span>RUPAY</span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2.5">
+                    <div className="relative">
+                      <input
+                        type="text"
+                        placeholder="4111 2222 3333 4444"
+                        readOnly
+                        value="4111 •••• •••• 4444"
+                        className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-700 focus:outline-none font-mono"
+                      />
+                      <CreditCard className="absolute right-3 top-3 w-4 h-4 text-slate-400" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <input
+                        type="text"
+                        placeholder="12/29"
+                        readOnly
+                        value="12/29"
+                        className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-700 focus:outline-none font-mono text-center"
+                      />
+                      <input
+                        type="text"
+                        placeholder="CVV"
+                        readOnly
+                        value="•••"
+                        className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-700 focus:outline-none font-mono text-center"
+                      />
+                    </div>
+                    <p className="text-[9px] font-medium text-slate-400 leading-normal">
+                      * Simulated visa card is locked. Click Authorize below to complete checkout simulation.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Simulator footer with success/failure triggers */}
+              <div className="bg-slate-50 border-t border-slate-100 p-4 shrink-0 flex flex-col gap-2">
+                <button
+                  onClick={handleSimulatedPaymentSuccess}
+                  className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl cursor-pointer flex items-center justify-center gap-1.5 uppercase tracking-wide transition-all shadow-md shadow-emerald-50"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>Authorize Simulated Payment</span>
+                </button>
+                <button
+                  onClick={() => {
+                    setShowSimulator(false);
+                    setPaymentStatus('failed');
+                    setErrorMessage('Simulation: Payment declined by gateway.');
+                  }}
+                  className="w-full py-2 bg-slate-100 hover:bg-rose-50 hover:text-rose-600 text-slate-400 text-[10px] font-black rounded-xl cursor-pointer transition-all uppercase tracking-wide"
+                >
+                  Simulate Payment Failure
+                </button>
               </div>
             </motion.div>
           </div>
