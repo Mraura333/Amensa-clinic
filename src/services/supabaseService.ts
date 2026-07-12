@@ -3,8 +3,42 @@ import { DatabaseSchema, Patient, Appointment } from '../../server-db';
 import { Payment } from '../types';
 
 // Supabase Credentials (using the actual values provided by the user with standard environment overrides)
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://xxpmsqiojwjznpzprdha.supabase.co';
-const SUPABASE_KEY = process.env.SUPABASE_KEY || 'sb_publishable_jxE_sHQGxofL9NAcOnLzWA_uY545Iuv';
+const DEFAULT_SUPABASE_URL = 'https://xxpmsqiojwjznpzprdha.supabase.co';
+const DEFAULT_SUPABASE_KEY = 'sb_publishable_jxE_sHQGxofL9NAcOnLzWA_uY545Iuv';
+
+function getValidUrl(url: any, fallback: string): string {
+  if (typeof url !== 'string') return fallback;
+  const trimmed = url.trim();
+  if (trimmed.match(/^https?:\/\//i)) {
+    return trimmed;
+  }
+  return fallback;
+}
+
+function getValidKey(key: any, fallback: string): string {
+  if (typeof key !== 'string') return fallback;
+  const trimmed = key.trim();
+  if (trimmed && trimmed !== 'undefined' && trimmed !== 'null' && !trimmed.includes('your-')) {
+    return trimmed;
+  }
+  return fallback;
+}
+
+// Extract URL from environment options (Node's process.env or Vite's import.meta.env)
+const rawUrl = 
+  (typeof process !== 'undefined' && process.env && process.env.SUPABASE_URL) ||
+  // @ts-ignore
+  (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_SUPABASE_URL) ||
+  DEFAULT_SUPABASE_URL;
+
+const rawKey = 
+  (typeof process !== 'undefined' && process.env && process.env.SUPABASE_KEY) ||
+  // @ts-ignore
+  (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_SUPABASE_KEY) ||
+  DEFAULT_SUPABASE_KEY;
+
+const SUPABASE_URL = getValidUrl(rawUrl, DEFAULT_SUPABASE_URL);
+const SUPABASE_KEY = getValidKey(rawKey, DEFAULT_SUPABASE_KEY);
 
 // Initialize Supabase Client
 export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {

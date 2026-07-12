@@ -1,37 +1,112 @@
-import { db } from '../lib/firebase';
-import { 
-  collection, 
-  doc, 
-  setDoc, 
-  addDoc, 
-  getDoc, 
-  getDocs, 
-  updateDoc, 
-  deleteDoc, 
-  query, 
-  where, 
-  orderBy, 
-  onSnapshot 
-} from 'firebase/firestore';
+import { supabase } from './supabaseService';
 import { Payment } from '../types';
 import { bookingService } from './bookingService';
 
+/**
+ * Maps Supabase snake_case rows to camelCase Payment typescript interfaces
+ */
+function mapRelationalToPayment(row: any): Payment {
+  return {
+    paymentId: row.payment_id,
+    bookingId: row.booking_id,
+    patientName: row.patient_name || '',
+    patientPhone: row.patient_phone || '',
+    patientEmail: row.patient_email || '',
+    serviceName: row.service_name || '',
+    serviceCategory: row.service_category || '',
+    packageName: row.package_name || '',
+    amount: Number(row.amount) || 0,
+    paymentMethod: row.payment_method || 'UPI QR',
+    paymentStatus: row.payment_status || 'Pending',
+    transactionId: row.transaction_id || '',
+    paymentScreenshotURL: row.payment_screenshot_url || '',
+    createdAt: row.created_at || '',
+    updatedAt: row.updated_at || '',
+    verifiedBy: row.verified_by || '',
+    verificationStatus: row.verification_status || 'Pending',
+    notes: row.notes || ''
+  };
+}
+
 export const paymentService = {
   /**
-   * Save a completed payment record inside Firestore
+   * Upload payment screenshot image directly to Supabase Storage
+   */
+  uploadScreenshot: async (file: File): Promise<string> => {
+    try {
+      const bucketName = 'payment-screenshots';
+      
+      // Proactively try to create the bucket in case it doesn't exist
+      try {
+        await supabase.storage.createBucket(bucketName, {
+          public: true
+        });
+      } catch (err) {
+        // Safe to ignore if bucket already exists or permissions restrict it
+      }
+
+      const fileExt = file.name.split('.').pop() || 'png';
+      const fileName = `pay_${Math.floor(100000 + Math.random() * 900000)}_${Date.now()}.${fileExt}`;
+      const filePath = `screenshots/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from(bucketName)
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false
+        });
+
+      if (uploadError) {
+        throw uploadError;
+      }
+
+      const { data } = supabase.storage
+        .from(bucketName)
+        .getPublicUrl(filePath);
+
+      return data.publicUrl;
+    } catch (error) {
+      console.error('Error uploading file to Supabase Storage:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Save a completed payment record inside Supabase database
    */
   createPayment: async (paymentData: Omit<Payment, 'createdAt' | 'updatedAt'>): Promise<string> => {
     try {
       const timestamp = new Date().toISOString();
-      const newPayment: Payment = {
-        ...paymentData,
-        createdAt: timestamp,
-        updatedAt: timestamp
+      
+      const relationalData = {
+        payment_id: paymentData.paymentId,
+        booking_id: paymentData.bookingId,
+        patient_name: paymentData.patientName,
+        patient_phone: paymentData.patientPhone,
+        patient_email: paymentData.patientEmail || '',
+        service_name: paymentData.serviceName,
+        service_category: paymentData.serviceCategory,
+        package_name: paymentData.packageName || '',
+        amount: Number(paymentData.amount) || 0,
+        payment_method: paymentData.paymentMethod || 'UPI QR',
+        payment_status: paymentData.paymentStatus || 'Pending',
+        transaction_id: paymentData.transactionId || '',
+        payment_screenshot_url: paymentData.paymentScreenshotURL || '',
+        created_at: timestamp,
+        updated_at: timestamp,
+        verification_status: paymentData.verificationStatus || 'Pending',
+        notes: paymentData.notes || '',
+        verified_by: paymentData.verifiedBy || ''
       };
-      
-      // Save in the 'payments' collection
-      await setDoc(doc(db, 'payments', paymentData.paymentId), newPayment);
-      
+
+      const { error } = await supabase
+        .from('payments')
+        .insert([relationalData]);
+
+      if (error) {
+        throw error;
+      }
+
       // Automatically update the associated booking status if payment is complete
       if (paymentData.paymentStatus === 'Paid' || paymentData.paymentStatus === 'Verified') {
         const bookingStatus = paymentData.paymentStatus === 'Verified' ? 'Confirmed' : 'Paid';
@@ -39,33 +114,56 @@ export const paymentService = {
           console.warn('Booking status sync omitted/deferred:', err);
         });
       }
-      
+
       return paymentData.paymentId;
     } catch (error) {
-      console.error('Error creating payment in Firestore:', error);
+      console.error('Error creating payment in Supabase:', error);
       throw error;
     }
   },
 
   /**
-   * Listen to real-time payments collection
+   * Listen to real-time payments table updates from Supabase
    */
   subscribePayments: (callback: (payments: Payment[]) => void) => {
-    const q = query(collection(db, 'payments'), orderBy('createdAt', 'desc'));
-    
-    return onSnapshot(q, (snapshot) => {
-      const payments: Payment[] = [];
-      snapshot.forEach((doc) => {
-        payments.push(doc.data() as Payment);
-      });
-      callback(payments);
-    }, (error) => {
-      console.error('Error listening to real-time payments:', error);
-    });
+    const fetchPayments = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('payments')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+        if (data) {
+          callback(data.map(mapRelationalToPayment));
+        }
+      } catch (err) {
+        console.error('Error fetching payments from Supabase:', err);
+      }
+    };
+
+    fetchPayments();
+
+    // Subscribe to real-time database subscription channel
+    const channel = supabase
+      .channel('realtime-payments-channel')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'payments' },
+        () => {
+          console.log('[Supabase Realtime] Change detected in payments table.');
+          fetchPayments();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   },
 
   /**
-   * Verify or Reject a Payment
+   * Verify, Reject or Update a Payment
    */
   verifyPayment: async (
     paymentId: string, 
@@ -76,25 +174,30 @@ export const paymentService = {
   ): Promise<void> => {
     try {
       const timestamp = new Date().toISOString();
-      const docRef = doc(db, 'payments', paymentId);
-      
-      const paymentUpdate: Partial<Payment> = {
-        verificationStatus: status,
-        verifiedBy,
-        paymentStatus: status === 'Approved' ? 'Verified' : 'Failed',
-        updatedAt: timestamp,
-        notes: notes || ''
-      };
-      
-      await updateDoc(docRef, paymentUpdate);
-      
+      const dbStatus = status === 'Approved' ? 'Verified' : 'Rejected';
+
+      const { error } = await supabase
+        .from('payments')
+        .update({
+          verification_status: status,
+          verified_by: verifiedBy,
+          payment_status: dbStatus,
+          updated_at: timestamp,
+          notes: notes || ''
+        })
+        .eq('payment_id', paymentId);
+
+      if (error) {
+        throw error;
+      }
+
       // Update booking status accordingly
       const bookingStatus = status === 'Approved' ? 'Confirmed' : 'Pending';
       await bookingService.updateBookingStatus(bookingId, bookingStatus).catch(err => {
         console.warn('Booking status sync failed during payment verification:', err);
       });
     } catch (error) {
-      console.error('Error verifying/updating payment:', error);
+      console.error('Error verifying/updating payment in Supabase:', error);
       throw error;
     }
   },
@@ -104,9 +207,16 @@ export const paymentService = {
    */
   deletePayment: async (paymentId: string): Promise<void> => {
     try {
-      await deleteDoc(doc(db, 'payments', paymentId));
+      const { error } = await supabase
+        .from('payments')
+        .delete()
+        .eq('payment_id', paymentId);
+
+      if (error) {
+        throw error;
+      }
     } catch (error) {
-      console.error('Error deleting payment:', error);
+      console.error('Error deleting payment in Supabase:', error);
       throw error;
     }
   },
